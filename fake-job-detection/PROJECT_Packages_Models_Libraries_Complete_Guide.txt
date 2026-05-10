@@ -1,0 +1,985 @@
+╔══════════════════════════════════════════════════════════════════════════════════════╗
+║         AI BASED FAKE JOB DETECTION USING HYBRID AI MODELS                                   ║
+║         COMPLETE GUIDE: PACKAGES · MODELS · LIBRARIES · ARCHITECTURE               ║
+║         Every technology explained — what it is, why it's used, how it works       ║
+╚══════════════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — WHAT IS THIS PROJECT?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FraudShield (also called JobGuard AI) is a full-stack AI-powered web application that
+detects fake and fraudulent job postings. It protects job seekers from scams,
+phishing, and data theft disguised as legitimate job offers.
+
+PROBLEM IT SOLVES:
+  Millions of fake job postings appear online every year, tricking people into:
+  → Paying upfront "registration fees" or "training fees" (money scam)
+  → Submitting personal info like SSN, bank account, passport (identity theft)
+  → Wasting time applying to non-existent companies
+  → Falling victim to work-from-home envelope-stuffing scams
+
+HOW IT WORKS (simple summary):
+  1. User provides a job posting (as text, a URL, or a screenshot image)
+  2. The system extracts and cleans the text
+  3. A hybrid AI model analyzes the text for fraud signals
+  4. Returns: FAKE or REAL prediction + confidence score + reasons + recommendations
+
+TECH STACK SUMMARY:
+  ┌─────────────────────────────────────────────────────────────┐
+  │  FRONTEND          HTML + CSS + JavaScript (Single Page App) │
+  │  BACKEND           Python + FastAPI (REST API Server)         │
+  │  AI/ML MODELS      scikit-learn (Random Forest + Logistic    │
+  │                    Regression + TF-IDF NLP)                  │
+  │  DATABASE          MySQL (User accounts, login/register)      │
+  │  IMAGE OCR         Tesseract (via pytesseract + Pillow)       │
+  │  WEB SCRAPING      requests + BeautifulSoup4                  │
+  │  DEPLOYMENT        Docker + Nginx + Uvicorn                   │
+  └─────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — ALL PYTHON PACKAGES (requirements.txt) — EXPLAINED IN FULL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every package listed in requirements.txt is explained below:
+
+─────────────────────────────────────────────────────────────────────
+① fastapi == 0.104.1
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  FastAPI is a modern, high-performance Python web framework for building
+  APIs (Application Programming Interfaces). It is one of the fastest
+  Python frameworks available — comparable to NodeJS and Go in speed.
+
+WHY THIS PROJECT USES IT:
+  The backend of FraudShield is an API server. When the frontend (HTML page)
+  wants to analyze a job posting, it sends an HTTP request to the backend.
+  FastAPI handles those incoming requests and returns results as JSON.
+
+  It provides three main endpoints:
+    POST /api/v1/analyze/text  → analyze pasted job text
+    POST /api/v1/analyze/url   → analyze a job posting URL
+    POST /api/v1/analyze/image → analyze an uploaded job screenshot
+
+KEY FEATURES USED:
+  → Router system to organize API endpoints into separate files
+  → Automatic request validation using Pydantic models
+  → CORS middleware to allow the frontend HTML to call the backend
+  → Automatic Swagger /docs page for testing the API
+  → Background startup events (used to init the MySQL DB on first run)
+
+─────────────────────────────────────────────────────────────────────
+② uvicorn == 0.24.0
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Uvicorn is an ASGI (Asynchronous Server Gateway Interface) web server.
+  It is the server that actually "runs" the FastAPI application.
+
+WHY THIS PROJECT USES IT:
+  FastAPI on its own is just a Python class — it needs a server to
+  listen for incoming HTTP connections. Uvicorn does that job.
+
+  In main.py the last line is:
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+  This means: start Uvicorn, load the `app` object from main.py,
+  listen on all network interfaces, on port 8000.
+
+  In Docker, the CMD in the Dockerfile is:
+    uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  2 workers = 2 parallel processes handle requests at the same time.
+
+─────────────────────────────────────────────────────────────────────
+③ python-multipart == 0.0.6
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  A library that parses multipart/form-data — the format browsers use
+  when uploading files (images, PDFs, etc.).
+
+WHY THIS PROJECT USES IT:
+  The image analysis endpoint (POST /analyze/image) accepts a file
+  upload. When a user uploads a screenshot of a job posting, the browser
+  sends it as multipart form data. Without this library, FastAPI cannot
+  parse the uploaded image bytes.
+
+─────────────────────────────────────────────────────────────────────
+④ pydantic == 2.5.0   AND   pydantic[email] == 2.5.0
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Pydantic is a Python data validation library. It ensures that data
+  coming into an API has the correct types and format.
+
+WHY THIS PROJECT USES IT:
+  Two uses in FraudShield:
+
+  Use 1 — API Request Models (routes.py):
+    class URLRequest(BaseModel):
+        url: str
+
+    class TextRequest(BaseModel):
+        title: Optional[str] = ""
+        company: Optional[str] = ""
+        description: Optional[str] = ""
+        ...
+
+    When a POST request arrives, Pydantic automatically validates that
+    the JSON body has the right fields and types. If a required field
+    is missing or wrong type, it returns a clear error automatically.
+
+  Use 2 — Auth/Registration (auth.py):
+    pydantic[email] adds email validation so that when a user registers,
+    the email field "abc@" would be rejected, but "abc@gmail.com" passes.
+
+─────────────────────────────────────────────────────────────────────
+⑤ requests == 2.31.0
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  The most popular Python library for making HTTP requests — essentially
+  letting Python "browse the web" programmatically.
+
+WHY THIS PROJECT USES IT:
+  When a user submits a job posting URL (e.g., a LinkedIn job link),
+  the backend needs to visit that URL and download its HTML content.
+  The scraper.py module uses requests.get(url) to fetch the webpage:
+
+    response = requests.get(url, headers=headers, timeout=15)
+
+  Headers are set to mimic a real browser (User-Agent) so websites
+  don't block the request thinking it's a bot.
+
+─────────────────────────────────────────────────────────────────────
+⑥ beautifulsoup4 == 4.12.2
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  BeautifulSoup4 (BS4) is a Python library for parsing HTML and XML.
+  It turns raw HTML code into a structured tree that can be searched
+  using CSS selectors, tag names, or attributes.
+
+WHY THIS PROJECT USES IT:
+  After requests.get() downloads the HTML of a job posting page,
+  BeautifulSoup parses it to extract the actual job content.
+
+  For LinkedIn:
+    job["title"] = soup.select_one(".job-details-jobs-unified-top-card__job-title")
+    job["company"] = soup.select_one(".jobs-unified-top-card__company-name")
+    job["description"] = soup.select_one(".jobs-description__content")
+
+  For Indeed, Glassdoor, and generic job boards — different CSS selectors.
+  Also reads schema.org JSON-LD structured data embedded in job pages
+  (a modern standard many job sites use to mark up job postings).
+
+─────────────────────────────────────────────────────────────────────
+⑦ pytesseract == 0.3.10
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  pytesseract is a Python wrapper for Google's Tesseract OCR engine.
+  OCR = Optical Character Recognition — converting an image of text
+  into actual machine-readable text.
+
+WHY THIS PROJECT USES IT:
+  The third input method is image upload — a user can upload a
+  screenshot of a job posting (e.g., from WhatsApp, email, or a job
+  board screenshot). pytesseract reads that image and extracts all
+  the visible text from it.
+
+  How it works in ocr.py:
+    img = Image.open(io.BytesIO(image_bytes))
+    img = preprocess_image(img)  # enhance contrast and sharpness
+    text = pytesseract.image_to_string(img, config=custom_config)
+
+  The OCR config uses:
+    --oem 3   (LSTM neural net + legacy engine combined)
+    --psm 6   (assume a single uniform block of text)
+
+  Fallback: if Tesseract is not installed, it tries easyocr instead.
+
+─────────────────────────────────────────────────────────────────────
+⑧ Pillow == 10.1.0
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Pillow is Python's standard image processing library (PIL fork).
+  It can open, edit, convert, resize, enhance, and save images
+  in almost any format (PNG, JPG, BMP, TIFF, etc.)
+
+WHY THIS PROJECT USES IT:
+  Used in two ways in ocr.py:
+
+  1. Opens the uploaded image from raw bytes:
+       img = Image.open(io.BytesIO(image_bytes))
+
+  2. Preprocesses the image to improve OCR accuracy:
+       img = img.convert('RGB')        → ensures correct color mode
+       img = img.convert('L')          → converts to grayscale (better OCR)
+       ImageEnhance.Contrast(img).enhance(2.0)  → double the contrast
+       ImageEnhance.Sharpness(img).enhance(2.0) → sharpen the text
+
+  This preprocessing step is critical — a low-contrast or blurry
+  screenshot would give bad OCR results without it.
+
+─────────────────────────────────────────────────────────────────────
+⑨ scikit-learn == 1.3.2
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  scikit-learn is the most widely used Python machine learning library.
+  It provides ready-to-use implementations of dozens of ML algorithms
+  including classification, regression, clustering, and preprocessing.
+
+WHY THIS PROJECT USES IT:
+  This is the CORE AI library. Three components are used:
+
+  A) RandomForestClassifier
+     → Builds 150 decision trees, each trained on random subsets of features
+     → Each tree votes on FAKE or REAL
+     → Final prediction is the majority vote
+     → Weight in ensemble: 60%
+
+  B) LogisticRegression
+     → A linear model that learns a sigmoid function over input features
+     → Good at combining numeric features into a probability
+     → max_iter=1000 to ensure it converges fully
+     → Weight in ensemble: 40%
+
+  C) VotingClassifier
+     → Combines Random Forest and Logistic Regression
+     → voting="soft" means it averages the probability outputs
+       (more accurate than hard/majority voting)
+     → ensemble = VotingClassifier([("rf", rf), ("lr", lr)],
+                                    voting="soft", weights=[0.6, 0.4])
+
+  D) TfidfVectorizer
+     → Converts job posting text into a numeric matrix
+     → ngram_range=(1, 2) means it captures both single words and
+       two-word phrases (bigrams): e.g., "registration fee", "easy money"
+     → max_features=500 → keeps only the 500 most important text features
+     → sublinear_tf=True → dampens very frequent words
+
+  All four together create the Hybrid ML Pipeline.
+
+─────────────────────────────────────────────────────────────────────
+⑩ scipy == 1.11.4
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  SciPy is a scientific computing library built on top of NumPy.
+  It provides advanced math, statistics, optimization, and sparse
+  matrix operations.
+
+WHY THIS PROJECT USES IT:
+  Used specifically for sparse matrix operations in the ML pipeline:
+
+    import scipy.sparse as sp
+    X_tfidf = tfidf.fit_transform(X_text)     # returns sparse matrix
+    X_combined = sp.hstack([sp.csr_matrix(X_struct), X_tfidf]).toarray()
+
+  The TF-IDF vectorizer returns a sparse matrix (most values are 0 —
+  most words don't appear in any given job posting). scipy.sparse.hstack
+  combines the 17 structured features (word_count, caps_ratio, etc.)
+  with the 500 TF-IDF text features efficiently into one matrix without
+  wasting memory on zeros.
+
+─────────────────────────────────────────────────────────────────────
+⑪ numpy == 1.26.2
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  NumPy is the fundamental library for numerical computing in Python.
+  It provides N-dimensional arrays and fast math operations on them.
+
+WHY THIS PROJECT USES IT:
+  Used throughout the ML pipeline:
+
+  1. Converts feature dictionaries into numeric arrays:
+       np.array([word_count, has_description, caps_ratio, ...], dtype=np.float32)
+
+  2. Stores training labels:
+       y = np.array([1, 1, 0, 1, 0, ...])   # 1=FAKE, 0=REAL
+
+  3. Reads model probability output:
+       proba = ensemble.predict_proba(X)[0]
+       fake_prob = float(proba[1])
+
+  All scikit-learn operations internally use NumPy arrays.
+
+─────────────────────────────────────────────────────────────────────
+⑫ mysql-connector-python == 8.2.0
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  The official MySQL driver for Python from Oracle/MySQL team.
+  It lets Python connect to a MySQL database, run SQL queries,
+  insert/update/delete records.
+
+WHY THIS PROJECT USES IT:
+  FraudShield has a user authentication system (login + register).
+  User accounts are stored in a MySQL database (login_system.users table).
+
+  auth.py uses it to:
+    → Create the users table on startup (init_db)
+    → Register new users (INSERT INTO users ...)
+    → Login — verify email + hashed password (SELECT FROM users ...)
+    → Update last_login timestamp
+
+  Connection config:
+    mysql.connector.connect(
+        host="localhost", port=3306,
+        database="login_system",
+        user="root", password="..."
+    )
+
+─────────────────────────────────────────────────────────────────────
+⑬ PyJWT == 2.8.0
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  PyJWT is a Python library for creating and verifying JSON Web Tokens.
+  JWT = a compact, self-contained token that stores user identity and
+  an expiry time, signed with a secret key to prevent tampering.
+
+WHY THIS PROJECT USES IT:
+  After a user logs in, the server creates a JWT token containing:
+    { "user_id": 42, "email": "user@gmail.com", "exp": <24 hours from now> }
+  
+  This token is signed with JWT_SECRET and sent back to the browser.
+  The browser stores it and sends it with every future API request.
+  The server verifies the signature — no need to hit the database
+  for every request to check if the user is logged in.
+
+  Two token types:
+    → Regular session token: expires in 24 hours
+    → "Remember Me" token: expires in 30 days
+
+─────────────────────────────────────────────────────────────────────
+SYSTEM PACKAGE — Tesseract OCR (not in requirements.txt — system install)
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Tesseract is Google's open-source OCR engine written in C++.
+  It uses LSTM (Long Short-Term Memory) neural networks to recognize
+  text in images. It supports 100+ languages.
+
+WHY THIS PROJECT USES IT:
+  pytesseract (Python package above) is just a wrapper — it calls the
+  actual Tesseract binary installed on the system. Without Tesseract
+  installed, pytesseract will fail with "tesseract is not installed."
+
+  In the Docker Dockerfile it is auto-installed:
+    RUN apt-get install -y tesseract-ocr tesseract-ocr-eng
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — AI MODELS EXPLAINED IN FULL DETAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FraudShield uses a HYBRID AI PIPELINE combining three different approaches:
+ML models + NLP text features + Rule-based fraud patterns.
+
+─────────────────────────────────────────────────────────────────────
+MODEL 1 — Random Forest Classifier (60% weight in final prediction)
+─────────────────────────────────────────────────────────────────────
+WHAT IS A RANDOM FOREST?
+  A Random Forest is an ensemble of many decision trees.
+  A decision tree is like a flowchart:
+    "Is caps_ratio > 0.3?"  YES → more likely fake
+    "Is word_count < 50?"   YES → more likely fake
+    "Has company name?"     NO  → more likely fake
+
+  A single tree can overfit (memorize training data).
+  Random Forest fixes this by:
+    → Building 150 separate trees
+    → Each tree sees a random subset of training samples
+    → Each split in a tree considers random subset of features
+    → All trees vote — majority wins
+
+CONFIGURATION IN THIS PROJECT:
+  RandomForestClassifier(
+      n_estimators=150,      # 150 trees in the forest
+      max_depth=8,           # each tree can be at most 8 levels deep
+      random_state=42,       # reproducible results
+      class_weight="balanced" # adjusts for the fact that fake jobs are
+  )                           # rarer than real jobs in training data
+
+WHAT FEATURES IT ANALYZES:
+  The 17 structured features extracted per job posting:
+    1.  word_count             — total word count
+    2.  has_description        — is there a description? (1/0)
+    3.  has_requirements       — are requirements listed? (1/0)
+    4.  has_company_name       — is company named? (1/0)
+    5.  has_salary             — is salary mentioned? (1/0)
+    6.  has_location           — is location given? (1/0)
+    7.  has_job_title          — is title present? (1/0)
+    8.  exclamation_count      — how many "!" in the text
+    9.  caps_ratio             — % of letters that are UPPERCASE
+    10. dollar_sign_count      — how many "$" symbols
+    11. email_count            — number of email addresses found
+    12. url_count              — number of URLs found
+    13. suspicious_score       — weighted count of fraud keywords found
+    14. legitimacy_score       — count of legitimate indicator phrases
+    15. from_trusted_source    — posted on LinkedIn/Indeed/etc? (1/0)
+    16. avg_sentence_length    — average words per sentence
+    17. has_proper_punctuation — uses periods/commas? (1/0)
+
+WHY RANDOM FOREST FOR THIS TASK?
+  → Handles mixed feature types (numeric scores + binary flags) naturally
+  → Robust to outliers and noisy features
+  → Can capture non-linear patterns (e.g., HIGH caps_ratio AND
+    many exclamation marks together = very suspicious)
+  → class_weight="balanced" handles the imbalanced dataset
+    (real jobs far outnumber fake ones)
+
+─────────────────────────────────────────────────────────────────────
+MODEL 2 — Logistic Regression (40% weight in final prediction)
+─────────────────────────────────────────────────────────────────────
+WHAT IS LOGISTIC REGRESSION?
+  Logistic Regression is a linear classification model.
+  It learns a weighted combination of all input features, then
+  passes it through a sigmoid function to output a probability
+  between 0 and 1.
+
+  Formula: P(FAKE) = sigmoid(w1*feature1 + w2*feature2 + ... + bias)
+  sigmoid(x) = 1 / (1 + e^(-x))  → outputs 0 to 1 (probability)
+
+CONFIGURATION IN THIS PROJECT:
+  LogisticRegression(
+      max_iter=1000,         # run up to 1000 optimization steps
+      C=1.0,                 # regularization strength (prevents overfitting)
+      class_weight="balanced", # handles imbalanced classes
+      solver="lbfgs",        # Limited-memory BFGS optimizer (good for small data)
+      random_state=42        # reproducible
+  )
+
+WHY LOGISTIC REGRESSION ALONGSIDE RANDOM FOREST?
+  → Linear models capture global linear relationships between features
+  → Complements Random Forest which captures non-linear interactions
+  → Very interpretable — you can see which features get highest weights
+  → Less likely to overfit on small training data
+  → The two models together (ensemble) are more accurate than either alone
+
+─────────────────────────────────────────────────────────────────────
+MODEL 3 — TF-IDF Vectorizer (Text NLP Features)
+─────────────────────────────────────────────────────────────────────
+WHAT IS TF-IDF?
+  TF-IDF = Term Frequency - Inverse Document Frequency.
+  It converts text into a numerical matrix where each column represents
+  a word or phrase, and each value represents how important that
+  word/phrase is in a given document.
+
+  TF  (Term Frequency) = how often a word appears in this job posting
+  IDF (Inverse Doc Frequency) = how rare the word is across all postings
+  → Common words like "the", "and" get low scores (high IDF penalty)
+  → Rare but meaningful words like "registration fee" get high scores
+
+CONFIGURATION IN THIS PROJECT:
+  TfidfVectorizer(
+      ngram_range=(1, 2),    # single words AND two-word phrases
+      max_features=500,      # keep only top 500 most important terms
+      sublinear_tf=True      # use log(1 + tf) instead of tf to reduce
+  )                           # the dominance of very frequent words
+
+WHY BIGRAMS (ngram_range=(1,2))?
+  Many fraud phrases are two words:
+    "registration fee", "easy money", "work from home",
+    "anyone can", "no experience", "guaranteed income"
+  
+  A single-word model would miss these. Bigrams capture them perfectly.
+
+HOW IT COMBINES WITH THE ML MODELS:
+  The 500 TF-IDF text features are combined (horizontally stacked)
+  with the 17 structured numeric features to create one combined matrix:
+
+    X_combined = [17 structured features | 500 TF-IDF features]
+                  = 517 total features per job posting
+
+  Both Random Forest and Logistic Regression are trained on this
+  517-feature combined input.
+
+─────────────────────────────────────────────────────────────────────
+MODEL 4 — VotingClassifier (Ensemble Combiner)
+─────────────────────────────────────────────────────────────────────
+WHAT IS AN ENSEMBLE?
+  An ensemble combines multiple models to produce a better prediction
+  than any single model could achieve alone.
+
+SOFT VOTING (used here):
+  Each model outputs a probability: e.g., RF says 0.82, LR says 0.74
+  The ensemble averages them with weights: 0.6 × 0.82 + 0.4 × 0.74 = 0.788
+  Final prediction: FAKE (above 0.5 threshold)
+
+HOW THE WEIGHTS WORK:
+  Random Forest  → weight 0.6  (more complex, usually more accurate)
+  Logistic Reg.  → weight 0.4  (simpler, good complement)
+
+  Final score shown to user:
+    ensemble score = weighted average of RF and LR probabilities
+
+─────────────────────────────────────────────────────────────────────
+RULE-BASED KNOWLEDGE BASE (NLP Pattern Matching — 70+ patterns)
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  A handcrafted dictionary of 70+ known fraud keyword patterns,
+  organized into 7 categories with different risk weights.
+
+WHY USE RULES ALONGSIDE ML?
+  → ML models generalize from training data but may miss specific
+    new phrases not seen in training
+  → Rules are 100% explainable — you can show the user exactly
+    which keywords triggered the alert
+  → Rules provide the "reasons" shown in the explanation panel
+
+THE 7 FRAUD CATEGORIES AND THEIR PATTERNS:
+
+  CATEGORY 1: PAYMENT REQUIRED (weight 1.0 — highest risk)
+    Keywords: "registration fee", "training fee", "deposit required",
+    "pay to work", "investment required", "startup fee",
+    "application fee", "processing fee", "background check fee",
+    "kit fee", "equipment fee"
+    Why weight 1.0: Legitimate employers NEVER ask workers to pay money.
+    Any fee request is almost certainly a scam.
+
+  CATEGORY 2: UNREALISTIC SALARY (weight 0.9 — very high risk)
+    Keywords: "earn $5000 weekly", "make $10000 a week", "unlimited income",
+    "guaranteed income", "$500 per day", "$3000 per day",
+    "earn 50000 monthly", "$10000 a week", "earn thousands"
+    Why: Real salaries are specific and reasonable. Scams use
+    exaggerated income claims to attract desperate job seekers.
+
+  CATEGORY 3: URGENCY PRESSURE (weight 0.8 — high risk)
+    Keywords: "urgent", "immediate", "asap", "right now", "today only",
+    "limited time", "act fast", "don't wait", "hurry", "apply immediately"
+    Why: Manufactured urgency prevents rational thinking.
+    Legitimate hiring processes take days or weeks — not minutes.
+
+  CATEGORY 4: SUSPICIOUS COMPANY INFO (weight 0.75 — high risk)
+    Keywords: "newly established", "startup opportunity",
+    "anonymous employer", "confidential company", "name withheld",
+    "undisclosed company"
+    Why: Legitimate employers always identify themselves.
+    Hidden identity = hiding something.
+
+  CATEGORY 5: POOR QUALITY INDICATORS (weight 0.7 — medium-high risk)
+    Keywords: "!!!!", "$$$$", "click here now", "100% guaranteed",
+    "risk free", "no risk", "secret method", "proven system"
+    Why: Excessive punctuation, guarantees, and "secret methods"
+    are classic marketing scam language, not professional job listings.
+
+  CATEGORY 6: VAGUE DESCRIPTION (weight 0.6 — medium risk)
+    Keywords: "easy money", "work from home", "be your own boss",
+    "flexible hours", "no experience required", "anyone can do it",
+    "simple tasks", "data entry from home", "envelope stuffing",
+    "click ads"
+    Why: Real jobs describe specific duties. Vague descriptions
+    hide the fact that no real job exists.
+
+  CATEGORY 7: PERSONAL INFO REQUESTS (weight 1.0 — highest risk)
+    Keywords: "send bank details", "provide ssn", "social security",
+    "wire transfer", "western union", "money gram", "send passport",
+    "credit card number", "bank account", "routing number"
+    Why: No employer needs your bank account or passport
+    during a job application. This is identity theft.
+
+LEGITIMATE INDICATORS (used to reduce fraud score):
+  "equal opportunity employer", "background check required",
+  "drug test", "competitive benefits", "health insurance", "401k",
+  "pto", "paid time off", "university degree", "bachelor's",
+  "master's", "years of experience", "interview process",
+  "hr department", "onboarding", "performance review",
+  "team environment", "career growth", "professional development"
+
+TRUSTED PLATFORM BONUS:
+  If the job URL comes from these domains, the legitimacy score rises:
+  linkedin.com, indeed.com, glassdoor.com, monster.com,
+  careerbuilder.com, ziprecruiter.com, dice.com, greenhouse.io,
+  lever.co, workday.com, bamboohr.com, jobvite.com
+
+─────────────────────────────────────────────────────────────────────
+FALLBACK RULE-BASED PREDICTOR
+─────────────────────────────────────────────────────────────────────
+If scikit-learn is not installed (e.g., running on minimal system),
+a mathematical rule-based fallback runs instead:
+
+  raw_score = suspicious_score × 0.25
+            - legitimacy_score × 0.08
+            + missing_fields   × 0.07
+
+  fake_probability = sigmoid(raw_score)
+                   = 1 / (1 + e^(-raw_score))
+
+This is shown to the user as "Rule-Based Fallback" instead of
+"Trained ML (RF + LR Ensemble)".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — TRAINING DATA AND DATASET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BUILT-IN SYNTHETIC TRAINING DATA (35 samples in detector.py):
+  The model ships with 35 hand-labeled training examples:
+    → 18 FAKE job postings (label = 1)
+    → 17 REAL job postings (label = 0)
+
+  FAKE examples include: "Earn $500/day from home, registration fee required"
+  REAL examples include: "Software Engineer at Google, $120K-$180K, 3+ years Python"
+
+  These 35 samples are enough to train a working model for demonstration.
+  The model is auto-trained on first startup and saved as trained_model.pkl.
+
+EMSCAD DATASET (for production-scale training):
+  EMSCAD = Employment Scam Aegean Dataset
+  Source: Kaggle — https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction
+  File: fake_job_postings.csv
+
+  Size: ~17,880 labeled job postings from real-world sources
+  Label column: "fraudulent" (0 = real, 1 = fake)
+  Fields: title, location, department, salary_range, company_profile,
+          description, requirements, benefits, employment_type,
+          required_experience, required_education, industry, function
+
+  To retrain on full EMSCAD data:
+    python train_on_emscad.py --csv fake_job_postings.csv
+
+  This replaces trained_model.pkl with a production-grade model.
+
+MODEL PERFORMANCE (claimed, based on EMSCAD evaluation):
+  Accuracy:   94.7%
+  Precision:  93.2%
+  Recall:     95.1%
+  F1 Score:   94.1%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — HOW THE AI PIPELINE WORKS END-TO-END
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+INPUT FLOW for all 3 input types:
+
+  ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+  │  TEXT Input │     │ Preprocessor     │     │FeatureExtractor │
+  │  URL Input  │───→ │ (preprocessor.py)│───→ │ (detector.py)   │
+  │ IMAGE Input │     │ → unified dict   │     │ → 17 features   │
+  └─────────────┘     └──────────────────┘     └────────┬────────┘
+       │                                                 │
+       │ IMAGE → ocr.py → pytesseract → text            │
+       │ URL   → scraper.py → requests + BS4 → dict     │
+       │                                                 ▼
+                                             ┌─────────────────────┐
+                                             │  TF-IDF Vectorizer  │
+                                             │ (500 text features) │
+                                             └──────────┬──────────┘
+                                                        │
+                                             ┌──────────▼──────────┐
+                                             │  scipy.sparse.hstack│
+                                             │  [17 struct | 500   │
+                                             │   tfidf] = 517 dim  │
+                                             └──────────┬──────────┘
+                                                        │
+                                    ┌───────────────────┼───────────────────┐
+                                    │                   │                   │
+                          ┌─────────▼──────┐  ┌────────▼──────┐   ┌───────▼───────┐
+                          │ Random Forest  │  │ Logistic Reg. │   │ NLP Patterns  │
+                          │ 150 trees      │  │ sigmoid func. │   │ 70+ keywords  │
+                          │ weight = 0.6   │  │ weight = 0.4  │   │ 7 categories  │
+                          └─────────┬──────┘  └────────┬──────┘   └───────┬───────┘
+                                    │                   │                  │
+                                    └──────────┬────────┘                 │
+                                               │                          │
+                                    ┌──────────▼──────────┐               │
+                                    │   Soft Voting        │               │
+                                    │ 0.6×RF + 0.4×LR     │               │
+                                    │ = ensemble probability│               │
+                                    └──────────┬──────────┘               │
+                                               │                          │
+                                    ┌──────────▼──────────────────────────▼───┐
+                                    │         EXPLAINABILITY ENGINE            │
+                                    │  → reasons (why fake/real)              │
+                                    │  → highlighted_keywords                 │
+                                    │  → risk_factors                         │
+                                    │  → recommendations                      │
+                                    │  → component_breakdown (RF, LR scores)  │
+                                    └──────────────────────┬──────────────────┘
+                                                           │
+                                    ┌──────────────────────▼──────────────────┐
+                                    │              API RESPONSE (JSON)         │
+                                    │  prediction: "FAKE" or "REAL"           │
+                                    │  confidence_score: 87.3%                │
+                                    │  risk_level: { HIGH, CRITICAL, ... }    │
+                                    │  explanation: { reasons, keywords, ... } │
+                                    └──────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — BACKEND MODULES (FILE-BY-FILE EXPLANATION)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FILE: backend/main.py
+  → FastAPI app initialization
+  → CORS middleware (allows browser on port 3000 to call port 8000)
+  → Imports and registers two routers:
+      router (api/routes.py) — analysis endpoints
+      auth_router (api/auth.py) — login/register endpoints
+  → On startup: calls init_db() to create MySQL tables if missing
+  → Entry point: uvicorn.run("main:app", host="0.0.0.0", port=8000)
+
+FILE: backend/api/routes.py
+  → Defines 4 HTTP endpoints:
+      POST /analyze/image → image → OCR → preprocess → detect → response
+      POST /analyze/url   → url → scrape → detect → response
+      POST /analyze/text  → text dict → detect → response
+      GET  /model/stats   → returns accuracy, precision, recall, F1
+  → All endpoints use Pydantic for input validation
+  → All call detector.analyze(job_data) at their core
+
+FILE: backend/api/auth.py
+  → User authentication system
+  → REGISTER: hashes password with SHA-256 + random salt → INSERT to MySQL
+  → LOGIN: verifies hashed password → creates JWT token → returns token
+  → VERIFY TOKEN: JWT decode + expiry check for protected routes
+  → Two token TTLs: 24h (standard) / 30 days (remember me)
+  → Password hashing uses hashlib.sha256 with a random 32-byte salt
+    (salt prevents rainbow table attacks)
+
+FILE: backend/models/detector.py
+  → The core AI engine. Contains:
+      TRAINING_SAMPLES: 35 labeled job postings (built-in training data)
+      SUSPICIOUS_KEYWORDS: 70+ fraud patterns in 7 categories
+      LEGITIMATE_INDICATORS: 19 phrases that signal a real job
+      TRUSTED_DOMAINS: 12 legitimate job platform domains
+
+      FeatureExtractor class: converts job dict → 17 numeric features
+      _train_and_save(): trains RF + LR + TF-IDF, saves to .pkl
+      _load_or_train(): loads existing model or trains new one
+      ExplainabilityEngine class: generates reasons/explanations
+      FakeJobDetector class: main analyzer — calls all above
+
+FILE: backend/utils/preprocessor.py
+  → Converts raw text (from OCR) or a URL-scraped dict into a
+    standardized job_data dictionary
+  → Uses regex to extract salary patterns, email addresses, phone
+    numbers, job title, company name, location from unstructured text
+  → Extracts "Requirements" section if it exists
+  → Builds full_text by concatenating all fields
+
+FILE: backend/utils/ocr.py
+  → Tries pytesseract (Tesseract OCR) first
+  → Falls back to easyocr if Tesseract not available
+  → Falls back to image metadata if both fail
+  → Preprocesses image with Pillow: grayscale → enhance contrast → sharpen
+  → Cleans OCR output: removes excessive whitespace, OCR artifacts,
+    normalizes smart quotes
+
+FILE: backend/utils/scraper.py
+  → Fetches job posting page HTML using requests
+  → Parses with BeautifulSoup4 using CSS selectors
+  → Domain-specific scrapers for: LinkedIn, Indeed, Glassdoor
+  → Generic scraper: tries schema.org JSON-LD first, then heuristic
+    CSS patterns (h1, .job-title, .company-name, etc.)
+  → Fallback: analyze_url_only() — if scraping fails, at least check
+    if the domain is a trusted source
+
+FILE: backend/models/trained_model.pkl
+  → Pre-trained model file serialized with Python's pickle module
+  → Contains: {"ensemble": VotingClassifier, "tfidf": TfidfVectorizer}
+  → Auto-regenerated if missing or corrupt on next startup
+  → Size: ~350KB (small — only 35 training samples)
+
+FILE: backend/db_setup.sql
+  → SQL script to create the login_system database and users table
+  → Run once before first backend startup
+  → In Docker: auto-runs via docker-entrypoint-initdb.d mount
+
+FILE: backend/train_on_emscad.py
+  → Script to retrain on the full EMSCAD dataset (17,880 samples)
+  → Loads CSV, maps columns to FeatureExtractor format
+  → Trains same RF + LR + TF-IDF pipeline
+  → Runs cross-validation and prints classification report
+  → Saves new trained_model.pkl (replaces the 35-sample version)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — FRONTEND TECHNOLOGIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TECHNOLOGY: Pure HTML + CSS + Vanilla JavaScript (No React, no framework)
+
+WHY NO FRAMEWORK?
+  → The frontend is a Single Page Application (SPA) built with pure
+    HTML/CSS/JS, making it deployable by just opening a file in a browser
+  → No build step, no Node.js, no npm required for the frontend
+  → Works with any static file server
+
+frontend/index.html (52KB) — Main Dashboard:
+  → 3 input tabs: Paste Text | Enter URL | Upload Image
+  → Calls the backend API using fetch() (JavaScript's HTTP client)
+  → Displays results: prediction badge, confidence score gauge,
+    risk level card, fraud reasons list, keyword highlights
+  → XAI (Explainable AI) panel shows breakdown of RF, LR scores
+  → Charts using Chart.js or inline SVG for visual risk display
+
+frontend/login.html (23KB) — Authentication Page:
+  → Register form: first name, last name, email, password
+  → Login form: email + password + "Remember Me" checkbox
+  → Calls /api/v1/auth/register and /api/v1/auth/login
+  → Stores JWT token in localStorage after successful login
+  → Redirects to index.html on success
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — DEPLOYMENT TECHNOLOGIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+─────────────────────────────────────────────────────────────────────
+Docker
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Docker packages an application and all its dependencies into a
+  self-contained "container" that runs identically on any machine.
+
+WHY USED HERE:
+  → Developer's machine, CI/CD server, production server — all run
+    the exact same environment
+  → No "it works on my machine" problems
+  → Tesseract OCR, Python 3.11, and all packages are bundled
+    into the container automatically
+
+DOCKERFILE (backend):
+  FROM python:3.11-slim         → start from official Python image
+  RUN apt-get install tesseract-ocr → install OCR engine
+  COPY requirements.txt .        → copy package list
+  RUN pip install -r requirements.txt → install all Python packages
+  COPY . .                       → copy all backend code
+  CMD uvicorn main:app ...        → start the server
+
+─────────────────────────────────────────────────────────────────────
+Docker Compose
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Docker Compose manages multiple Docker containers as one application.
+  One YAML file defines all services, their configurations, and
+  how they connect to each other.
+
+THREE SERVICES IN docker-compose.yml:
+  1. db        → MySQL 8.0 database
+                 Runs db_setup.sql automatically on first start
+                 Stores data in a persistent volume (mysql_data)
+
+  2. backend   → FastAPI + Uvicorn on port 8000
+                 Connects to "db" service for MySQL
+                 Depends on db being healthy before starting
+
+  3. frontend  → Nginx Alpine serving the HTML files on port 3000
+                 Proxies /api/ requests to the backend container
+
+Command:  docker-compose up --build
+
+─────────────────────────────────────────────────────────────────────
+Nginx
+─────────────────────────────────────────────────────────────────────
+WHAT IT IS:
+  Nginx is a high-performance web server and reverse proxy.
+
+TWO ROLES IN THIS PROJECT:
+  1. Static file server: serves frontend/index.html and login.html
+     to the browser on http://localhost:3000
+
+  2. Reverse proxy: any request to /api/ is forwarded to the backend
+     container at http://backend:8000
+     This hides the backend port from the public internet and
+     allows both frontend and backend to appear on the same port.
+
+  nginx.conf:
+    location /      → serve static HTML files
+    location /api/  → proxy_pass to http://backend:8000
+
+─────────────────────────────────────────────────────────────────────
+Uvicorn Workers
+─────────────────────────────────────────────────────────────────────
+In Docker mode, the backend runs with --workers 2, meaning 2 separate
+Python processes handle requests in parallel. This doubles throughput.
+In manual mode (python main.py), 1 worker runs with reload=True
+(auto-restart when code changes).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 9 — SECURITY DESIGN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PASSWORD SECURITY:
+  → Passwords are NEVER stored in plain text
+  → A random 32-byte salt is generated per user using secrets.token_hex(32)
+  → Password is hashed: sha256(salt + password).hexdigest()
+  → Salt is stored alongside the hash — needed to verify on login
+  → Even if the database is leaked, passwords cannot be reversed
+
+JWT TOKEN SECURITY:
+  → Signed with HS256 (HMAC-SHA256) using JWT_SECRET
+  → Contains: user_id, email, expiry (exp)
+  → Server verifies signature on every protected request
+  → Cannot be forged without the secret key
+
+CORS CONFIGURATION:
+  → allow_origins=["*"] is used — suitable for development
+  → For production: restrict to specific frontend domain only
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 10 — COMPLETE PACKAGE + TECHNOLOGY SUMMARY TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Package / Technology        Version    Category        Purpose
+  ─────────────────────────── ─────────  ──────────────  ───────────────────────────────────────
+  fastapi                     0.104.1    Web Framework   REST API server and routing
+  uvicorn                     0.24.0     ASGI Server     Runs FastAPI application
+  python-multipart            0.0.6      HTTP Parsing    File upload handling
+  pydantic                    2.5.0      Validation      Request data validation + type checking
+  pydantic[email]             2.5.0      Validation      Email format validation
+  requests                    2.31.0     HTTP Client     Fetches job posting web pages
+  beautifulsoup4              4.12.2     HTML Parsing    Extracts job data from HTML pages
+  pytesseract                 0.3.10     OCR Wrapper     Python interface to Tesseract OCR
+  Pillow                      10.1.0     Image Processing Opens/enhances images for OCR
+  scikit-learn                1.3.2      Machine Learning Random Forest, Logistic Reg, TF-IDF
+  scipy                       1.11.4     Scientific Math  Sparse matrix operations for ML
+  numpy                       1.26.2     Numerical Arrays  Feature arrays and probability handling
+  mysql-connector-python      8.2.0      Database Driver  Connect Python to MySQL
+  PyJWT                       2.8.0      Authentication   JSON Web Token creation + verification
+  Tesseract OCR (system)      5.x        OCR Engine       Extracts text from images
+  MySQL Server (system)       8.0        Database         Stores user accounts
+  Docker                      24.x       Container        Packages entire app for deployment
+  Docker Compose              2.x        Orchestration    Manages db + backend + frontend together
+  Nginx                       Alpine     Web Server       Serves frontend + proxies API calls
+  Python                      3.11       Language         All backend code runtime
+  ─────────────────────────── ─────────  ──────────────  ───────────────────────────────────────
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 11 — WHY EACH DESIGN DECISION WAS MADE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHY FASTAPI INSTEAD OF FLASK OR DJANGO?
+  → FastAPI is 2–3× faster than Flask for I/O-heavy workloads
+  → Auto-generates /docs Swagger page (great for testing and demos)
+  → Native async support handles concurrent image/URL analysis better
+  → Pydantic integration provides automatic input validation
+
+WHY RANDOM FOREST + LOGISTIC REGRESSION INSTEAD OF DEEP LEARNING?
+  → Training data is only 35 samples built-in (BERT needs thousands)
+  → RF and LR train in milliseconds; BERT takes hours
+  → These models are explainable — feature importances are available
+  → No GPU required — runs on any laptop
+  → Accuracy is still high when combined with good NLP features
+
+WHY MYSQL INSTEAD OF SQLITE OR POSTGRESQL?
+  → MySQL is widely taught in academic projects
+  → Easy to manage with GUI tools like MySQL Workbench / phpMyAdmin
+  → Good Docker image availability
+  → Production-ready for scaling
+
+WHY HYBRID (ML + RULES) INSTEAD OF PURE ML?
+  → Pure ML is a black box — users can't see why something is "fake"
+  → Rule-based patterns provide human-readable explanations
+  → Rules catch brand-new scam phrases not seen in training data
+  → ML catches subtle patterns rules would miss
+  → Together they provide better accuracy AND explainability
+
+WHY TF-IDF INSTEAD OF WORD2VEC OR BERT?
+  → TF-IDF is interpretable — specific terms can be highlighted
+  → No pre-trained model download needed (self-contained)
+  → Works well on short texts like job postings (< 500 words)
+  → Bigrams capture multi-word fraud phrases ("registration fee")
+  → BERT would require 400MB+ model download and GPU
+
+WHY NGINX AS FRONTEND SERVER?
+  → Nginx is extremely fast for static file serving
+  → Acts as reverse proxy so frontend and backend share port 3000
+  → The same nginx.conf works in both development and production
+  → Alpine image is tiny (5MB) — minimal Docker overhead
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                              END OF DOCUMENT
+          FraudShield — Fake Job Detection System (JobGuard AI)
+          Packages · Models · Libraries · Architecture — Complete Guide
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

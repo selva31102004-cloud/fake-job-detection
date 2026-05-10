@@ -1,0 +1,606 @@
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║          FRAUDSHIELD — FAKE JOB DETECTION SYSTEM                               ║
+║          COMPLETE A-Z RUN GUIDE (Command Prompt + Docker)                      ║
+║          For Windows CMD / macOS Terminal / Linux Terminal                      ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+This guide covers EVERYTHING from zero to running app — step by step.
+Two methods are explained:
+  • METHOD A — Manual Setup (Virtual Environment + Command Prompt)
+  • METHOD B — Docker Setup (One command, fully automatic)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 0 — EXTRACT THE PROJECT ZIP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Download the zip file: fake-job-detection-compressed.zip
+
+2. Right-click → "Extract All" (Windows)
+   OR in terminal:
+     unzip fake-job-detection-compressed.zip
+
+3. After extraction you will have this folder structure:
+     fake-job-clean/
+     └── fake-job-detection/
+         ├── frontend/
+         │   ├── index.html        ← Login page 
+         │   └── home.html        ← Main UI page
+         ├── backend/
+         │   ├── main.py           ← FastAPI server entry point
+         │   ├── requirements.txt  ← All Python packages list
+         │   ├── db_setup.sql      ← MySQL database setup script
+         │   ├── Dockerfile        ← Docker instructions for backend
+         │   ├── api/
+         │   │   ├── routes.py     ← API endpoints (analyze text/url/image)
+         │   │   └── auth.py       ← Login/Register with MySQL
+         │   ├── models/
+         │   │   ├── detector.py   ← Hybrid AI fraud detector
+         │   │   └── trained_model.pkl  ← Pre-trained ML model file
+         │   └── utils/
+         │       ├── ocr.py        ← Image → text using Tesseract
+         │       ├── scraper.py    ← Web URL scraper
+         │       └── preprocessor.py  ← Feature engineering
+         ├── docker-compose.yml    ← Docker full stack config
+         └── nginx.conf            ← Nginx web server config
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD A — MANUAL SETUP (Command Prompt / Terminal)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRE-REQUIREMENTS — Install these first before anything else
+─────────────────────────────────────────────────────────────
+
+① PYTHON 3.11
+  Download: https://www.python.org/downloads/
+  During install → ✅ Check "Add Python to PATH"
+  Verify install:
+    python --version
+  Expected output: Python 3.11.x
+
+② MYSQL SERVER
+  Download: https://dev.mysql.com/downloads/mysql/
+  During install → set a root password (remember it!)
+  Verify install:
+    mysql --version
+  Expected output: mysql  Ver 8.x.x
+
+③ TESSERACT OCR (needed for image-based job post analysis)
+  Windows:
+    Download installer from: https://github.com/UB-Mannheim/tesseract/wiki
+    Install to: C:\Program Files\Tesseract-OCR\
+    Add to PATH: Control Panel → System → Environment Variables
+      → Under "System Variables" → Path → New → C:\Program Files\Tesseract-OCR\
+  Ubuntu/Debian:
+    sudo apt-get update
+    sudo apt-get install tesseract-ocr tesseract-ocr-eng
+  macOS:
+    brew install tesseract
+  Verify:
+    tesseract --version
+  Expected: tesseract 5.x.x
+
+─────────────────────────────────────────────────────────────
+A1 — NAVIGATE TO THE PROJECT FOLDER
+─────────────────────────────────────────────────────────────
+
+Open Command Prompt (Windows) or Terminal (Mac/Linux).
+
+  cd path\to\fake-job-clean\fake-job-detection
+
+Example (Windows):
+  cd C:\Users\YourName\Downloads\fake-job-clean\fake-job-detection
+
+Example (Mac/Linux):
+  cd ~/Downloads/fake-job-clean/fake-job-detection
+
+─────────────────────────────────────────────────────────────
+A2 — CREATE A PYTHON VIRTUAL ENVIRONMENT
+─────────────────────────────────────────────────────────────
+
+What is a virtual environment?
+  → It creates an isolated Python space just for this project.
+  → Packages installed here won't affect other Python projects.
+  → Think of it like a separate room just for FraudShield.
+
+Navigate into backend folder first:
+  cd backend
+
+Create the virtual environment:
+  python -m venv venv
+
+  This creates a folder called "venv" inside backend/.
+  It contains a clean Python copy + pip for this project only.
+
+Activate the virtual environment:
+
+  Windows CMD:
+    venv\Scripts\activate.bat
+
+  Windows PowerShell:
+    venv\Scripts\Activate.ps1
+
+  Mac / Linux:
+    source venv/bin/activate
+
+After activation, your prompt changes to show (venv):
+  Example: (venv) C:\...\backend>
+  This means the virtual environment is active. ✅
+
+─────────────────────────────────────────────────────────────
+A3 — INSTALL ALL PYTHON PACKAGES
+─────────────────────────────────────────────────────────────
+
+Make sure (venv) is shown in your prompt before this step.
+
+  pip install -r requirements.txt
+
+This installs these packages (from requirements.txt):
+  • fastapi==0.104.1         → Web framework for the API server
+  • uvicorn==0.24.0          → ASGI server that runs FastAPI
+  • python-multipart==0.0.6  → Handles file uploads (image input)
+  • pydantic==2.5.0          → Data validation for API inputs
+  • requests==2.31.0         → HTTP requests (URL scraping)
+  • beautifulsoup4==4.12.2   → HTML parsing for web scraper
+  • pytesseract==0.3.10      → Python wrapper for Tesseract OCR
+  • Pillow==10.1.0            → Image processing library
+  • scikit-learn==1.3.2      → ML models (Random Forest, Logistic Reg)
+  • scipy==1.11.4             → Scientific computing (ML support)
+  • numpy==1.26.2             → Numerical arrays (ML support)
+  • mysql-connector-python==8.2.0 → Connect Python to MySQL
+  • PyJWT==2.8.0              → JSON Web Tokens for login sessions
+  • pydantic[email]==2.5.0   → Email validation for registration
+
+Wait for all packages to finish installing.
+You will see "Successfully installed..." at the end. ✅
+
+─────────────────────────────────────────────────────────────
+A4 — SET UP MYSQL DATABASE
+─────────────────────────────────────────────────────────────
+
+The backend uses MySQL to store user accounts (login/register).
+You must create the database before starting the server.
+
+Step 1: Open MySQL in a NEW command prompt window (keep venv window open):
+  mysql -u root -p
+
+  → Enter your MySQL root password when prompted.
+  → You will see: mysql>
+
+Step 2: Run the setup script:
+  source db_setup.sql;
+  OR copy-paste this manually:
+
+    CREATE DATABASE IF NOT EXISTS login_system
+      CHARACTER SET utf8mb4
+      COLLATE utf8mb4_unicode_ci;
+    USE login_system;
+    CREATE TABLE IF NOT EXISTS users (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        first_name    VARCHAR(100)         NOT NULL,
+        last_name     VARCHAR(100)         NOT NULL,
+        email         VARCHAR(255) UNIQUE  NOT NULL,
+        password_hash VARCHAR(128)         NOT NULL,
+        salt          VARCHAR(64)          NOT NULL,
+        is_active     TINYINT(1)           NOT NULL DEFAULT 1,
+        last_login    DATETIME             NULL,
+        created_at    DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at    DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_email (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+Step 3: Verify tables were created:
+  SHOW TABLES;
+
+  Expected output:
+  +------------------------+
+  | Tables_in_login_system |
+  +------------------------+
+  | users                  |
+  +------------------------+
+
+Step 4: Exit MySQL:
+  exit;
+
+─────────────────────────────────────────────────────────────
+A5 — CONFIGURE DATABASE CONNECTION
+─────────────────────────────────────────────────────────────
+
+The backend reads DB credentials from environment variables.
+The default password hardcoded in auth.py is: Selv@R@1
+
+Option 1 — If your MySQL password matches, skip this step.
+
+Option 2 — Create a .env file inside /backend:
+  (Create a new file named exactly: .env — no other extension)
+
+  Contents of .env:
+    DB_HOST=localhost
+    DB_PORT=3306
+    DB_NAME=login_system
+    DB_USER=root
+    DB_PASSWORD=your_actual_mysql_password_here
+    JWT_SECRET=any-long-random-secret-string-here
+
+  Save the file inside the backend/ folder.
+
+─────────────────────────────────────────────────────────────
+A6 — START THE BACKEND SERVER
+─────────────────────────────────────────────────────────────
+
+Make sure you are inside the backend/ folder with (venv) active.
+
+  python main.py
+
+You will see output like:
+  INFO:     Started server process [XXXX]
+  INFO:     Waiting for application startup.
+  ✅  MySQL users table ready.
+  INFO:     Application startup complete.
+  INFO:     Uvicorn running on http://0.0.0.0:8000
+
+Backend is now running at: http://localhost:8000  ✅
+
+Test it — open your browser and go to:
+  http://localhost:8000          → shows {"message": "Fake Job Detection API is running"}
+  http://localhost:8000/health   → shows {"status": "healthy"}
+  http://localhost:8000/docs     → Swagger interactive API documentation
+
+─────────────────────────────────────────────────────────────
+A7 — START THE FRONTEND
+─────────────────────────────────────────────────────────────
+
+Open a NEW command prompt / terminal window (keep the backend running).
+
+Navigate to the frontend folder:
+  cd path\to\fake-job-clean\fake-job-detection\frontend
+
+Start the frontend static server:
+  python -m http.server 3000
+
+You will see:
+  Serving HTTP on 0.0.0.0 port 3000 (http://0.0.0.0:3000/) ...
+
+Open your browser and go to:
+  http://localhost:3000   → Login page / Main UI  ✅
+
+─────────────────────────────────────────────────────────────
+A8 — USE THE APPLICATION
+─────────────────────────────────────────────────────────────
+
+1. Open http://localhost:3000 in browser
+2. Click "Register" → create an account with name + email + password
+3. Login with your credentials
+4. You will see the main FraudShield dashboard
+5. Analyze a job posting using any of these 3 methods:
+   a) Paste the TEXT of a job posting directly
+   b) Enter the URL of a job posting (LinkedIn, Indeed, etc.)
+   c) Upload a SCREENSHOT/IMAGE of a job posting
+6. Click Analyze → the AI returns:
+   • FAKE or REAL prediction
+   • Confidence score (e.g., 87.3%)
+   • Risk level: LOW / MEDIUM / HIGH / CRITICAL
+   • Reasons why it's suspicious
+   • Highlighted suspicious keywords
+
+─────────────────────────────────────────────────────────────
+A9 — STOP THE APPLICATION
+─────────────────────────────────────────────────────────────
+
+In each terminal window, press:
+  Ctrl + C
+
+To deactivate the virtual environment when done:
+  deactivate
+
+  Prompt returns to normal (no (venv) prefix).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD B — DOCKER SETUP (Recommended — Easiest)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+What is Docker?
+  → Docker packages the entire app (Python, packages, Tesseract, Nginx)
+    into isolated "containers". You don't install anything manually.
+  → One command starts the whole stack.
+
+─────────────────────────────────────────────────────────────
+B1 — INSTALL DOCKER
+─────────────────────────────────────────────────────────────
+
+Windows / macOS:
+  Download Docker Desktop: https://www.docker.com/products/docker-desktop/
+  Install and launch Docker Desktop.
+  Wait until Docker Desktop shows "Engine running" in the taskbar.
+
+Linux (Ubuntu):
+  sudo apt-get update
+  sudo apt-get install docker.io docker-compose
+  sudo systemctl start docker
+  sudo systemctl enable docker
+
+Verify Docker is installed:
+  docker --version
+  docker-compose --version
+
+Expected output:
+  Docker version 24.x.x
+  Docker Compose version v2.x.x
+
+─────────────────────────────────────────────────────────────
+B2 — IMPORTANT: ADD MYSQL TO DOCKER COMPOSE
+─────────────────────────────────────────────────────────────
+
+The default docker-compose.yml does NOT include a MySQL container.
+You need to add it so the backend can connect to a database.
+
+Open: fake-job-clean/fake-job-detection/docker-compose.yml
+Replace its entire contents with this updated version:
+
+────────────────── docker-compose.yml ──────────────────────
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Selv@R@1
+      MYSQL_DATABASE: login_system
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/db_setup.sql:/docker-entrypoint-initdb.d/db_setup.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=login_system
+      - DB_USER=root
+      - DB_PASSWORD=Selv@R@1
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+─────────────────────────────────────────────────────────────
+
+Save the file after editing.
+
+─────────────────────────────────────────────────────────────
+B3 — NAVIGATE TO PROJECT FOLDER
+─────────────────────────────────────────────────────────────
+
+Open Command Prompt or Terminal.
+
+  cd path\to\fake-job-clean\fake-job-detection
+
+Example (Windows):
+  cd C:\Users\YourName\Downloads\fake-job-clean\fake-job-detection
+
+Example (Mac/Linux):
+  cd ~/Downloads/fake-job-clean/fake-job-detection
+
+─────────────────────────────────────────────────────────────
+B4 — BUILD AND START ALL CONTAINERS
+─────────────────────────────────────────────────────────────
+
+Run this single command:
+
+  docker-compose up --build
+
+What this does step by step:
+  → Pulls MySQL 8.0 image from Docker Hub
+  → Pulls Python 3.11-slim image from Docker Hub
+  → Pulls Nginx Alpine image from Docker Hub
+  → Installs Tesseract OCR inside the backend container
+  → Installs all Python packages from requirements.txt
+  → Runs db_setup.sql to create the login_system database + users table
+  → Starts the FastAPI backend on port 8000
+  → Starts Nginx frontend on port 3000
+
+First build takes 3–7 minutes (downloading images and packages).
+Subsequent starts are fast (under 30 seconds).
+
+Wait until you see these lines:
+  fake-job-detection-db-1        | ready for connections
+  fake-job-detection-backend-1   | Application startup complete.
+  fake-job-detection-frontend-1  | start worker process
+
+─────────────────────────────────────────────────────────────
+B5 — OPEN THE APPLICATION
+─────────────────────────────────────────────────────────────
+
+Frontend UI:     http://localhost:3000
+Backend API:     http://localhost:8000
+API Swagger:     http://localhost:8000/docs
+Health Check:    http://localhost:8000/health
+
+─────────────────────────────────────────────────────────────
+B6 — RUN IN BACKGROUND (Optional)
+─────────────────────────────────────────────────────────────
+
+If you want Docker to run silently in the background:
+
+  docker-compose up --build -d
+
+  The -d flag means "detached" (background mode).
+  Your terminal is free to use while the app runs.
+
+Check if containers are running:
+  docker-compose ps
+
+View live logs:
+  docker-compose logs -f
+
+─────────────────────────────────────────────────────────────
+B7 — STOP DOCKER CONTAINERS
+─────────────────────────────────────────────────────────────
+
+If running in foreground: press Ctrl + C
+
+If running in background:
+  docker-compose down
+
+To also delete the MySQL data volume (full reset):
+  docker-compose down -v
+
+─────────────────────────────────────────────────────────────
+B8 — RESTART AFTER STOPPING
+─────────────────────────────────────────────────────────────
+
+Next time you want to start the app (no need to rebuild):
+  docker-compose up
+
+Only rebuild if you changed code or requirements.txt:
+  docker-compose up --build
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TROUBLESHOOTING — COMMON ERRORS & FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ERROR: "python is not recognized as a command"
+  → Python is not added to PATH.
+  → Reinstall Python and check "Add Python to PATH" during setup.
+  → Or use: py --version (Windows alternative)
+
+ERROR: "pip is not recognized"
+  → Run: python -m pip install -r requirements.txt
+
+ERROR: "tesseract is not installed or not in your PATH"
+  → Install Tesseract OCR (see Step 0, Pre-Requirements ③)
+  → Windows: make sure C:\Program Files\Tesseract-OCR\ is in PATH
+
+ERROR: "Access denied for user 'root'@'localhost'"
+  → Wrong MySQL password in .env file or auth.py
+  → Default password in auth.py is: Selv@R@1
+  → Change it in .env: DB_PASSWORD=your_actual_password
+
+ERROR: "Can't connect to MySQL server on 'localhost'"
+  → MySQL is not running.
+  → Windows: Open Services → find "MySQL80" → Start it
+  → Linux:   sudo systemctl start mysql
+  → macOS:   brew services start mysql
+
+ERROR: "Port 8000 is already in use"
+  → Another process is using port 8000.
+  → Windows: netstat -ano | findstr :8000 → taskkill /PID <PID> /F
+  → Linux:   sudo kill -9 $(lsof -t -i:8000)
+
+ERROR: "Port 3000 is already in use"
+  → Change port: python -m http.server 3001
+  → Then open http://localhost:3001
+
+ERROR: Docker — "Cannot connect to the Docker daemon"
+  → Docker Desktop is not running.
+  → Open Docker Desktop and wait for "Engine running".
+
+ERROR: Docker — "db_setup.sql: Permission denied"
+  → Give the SQL file read permission:
+  → Linux/Mac: chmod 644 backend/db_setup.sql
+
+ERROR: "ModuleNotFoundError: No module named 'fastapi'"
+  → Virtual environment is not activated.
+  → Run: venv\Scripts\activate.bat (Windows) or source venv/bin/activate (Mac/Linux)
+  → Then retry: pip install -r requirements.txt
+
+ERROR: "mysql.connector.errors.DatabaseError: 1049 Unknown database 'login_system'"
+  → Database not created. Run db_setup.sql in MySQL first (see Step A4).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUICK REFERENCE — ALL COMMANDS AT A GLANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MANUAL SETUP (Terminal A — Backend):
+  cd fake-job-clean/fake-job-detection/backend
+  python -m venv venv
+  venv\Scripts\activate.bat          ← Windows
+  source venv/bin/activate           ← Mac/Linux
+  pip install -r requirements.txt
+  python main.py
+
+MANUAL SETUP (Terminal B — Frontend):
+  cd fake-job-clean/fake-job-detection/frontend
+  python -m http.server 3000
+
+DOCKER SETUP (First time):
+  cd fake-job-clean/fake-job-detection
+  docker-compose up --build
+
+DOCKER SETUP (After first time):
+  docker-compose up
+
+DOCKER STOP:
+  docker-compose down
+
+URLS:
+  Frontend  →  http://localhost:3000
+  Backend   →  http://localhost:8000
+  API Docs  →  http://localhost:8000/docs
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROJECT SUMMARY — WHAT EACH FILE DOES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+frontend/index.html         → Main dashboard UI (single page app)
+frontend/login.html         → Login and registration page
+
+backend/main.py             → Starts the FastAPI server, connects routes
+backend/requirements.txt    → All Python packages needed
+backend/db_setup.sql        → SQL to create login_system database + users table
+backend/Dockerfile          → Instructions to build the backend container
+docker-compose.yml          → Orchestrates all 3 services (db + backend + frontend)
+nginx.conf                  → Nginx config: serves frontend and proxies /api/ calls
+
+backend/api/routes.py       → 3 main endpoints: /analyze/text, /analyze/url, /analyze/image
+backend/api/auth.py         → /register, /login, /logout endpoints using MySQL + JWT
+
+backend/models/detector.py  → Core AI: Random Forest (40%) + Logistic Regression (30%)
+                              + NLP keyword analysis (30%) = Hybrid fraud score
+backend/models/trained_model.pkl → Pre-trained model weights (already trained)
+
+backend/utils/ocr.py        → Reads text from uploaded job post screenshots
+backend/utils/scraper.py    → Fetches and parses HTML from job posting URLs
+backend/utils/preprocessor.py → Converts raw text into 9 ML feature values
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                           END OF GUIDE
+           FraudShield Fake Job Detection System — JobGuard AI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

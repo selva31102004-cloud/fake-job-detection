@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Based Fake Job Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04080e;
+    --bg2: #080f19;
+    --surface: #0c1625;
+    --surface2: #0f1e30;
+    --border: #162030;
+    --border2: #1d2f46;
+    --cyan: #00f5ff;
+    --cyan-dim: rgba(0,245,255,0.10);
+    --amber: #ffb700;
+    --amber-dim: rgba(255,183,0,0.10);
+    --red: #ff2d55;
+    --red-dim: rgba(255,45,85,0.10);
+    --green: #00e676;
+    --green-dim: rgba(0,230,118,0.10);
+    --text: #dce8f5;
+    --muted: #4a6680;
+    --font-head: 'Bebas Neue', sans-serif;
+    --font-body: 'Outfit', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NOISE */
+  body::after {
+    content:'';
+    position:fixed; inset:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events:none; z-index:0; opacity:0.5;
+  }
+
+  /* AURORA */
+  .aurora { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+  .ab {
+    position:absolute; border-radius:50%;
+    filter:blur(120px);
+    animation:drift 22s ease-in-out infinite alternate;
+  }
+  .ab:nth-child(1){ width:700px;height:700px;background:radial-gradient(circle,rgba(0,245,255,0.055) 0%,transparent 70%);top:-150px;left:-150px;animation-delay:0s; }
+  .ab:nth-child(2){ width:500px;height:500px;background:radial-gradient(circle,rgba(255,183,0,0.045) 0%,transparent 70%);top:35%;right:-120px;animation-delay:-8s; }
+  .ab:nth-child(3){ width:400px;height:400px;background:radial-gradient(circle,rgba(255,45,85,0.035) 0%,transparent 70%);bottom:-60px;left:35%;animation-delay:-16s; }
+  @keyframes drift { 0%{transform:translate(0,0) scale(1)} 100%{transform:translate(50px,35px) scale(1.12)} }
+
+  /* GRID */
+  .grid-lines {
+    position:fixed;inset:0;
+    background-image:
+      linear-gradient(rgba(0,245,255,0.022) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,245,255,0.022) 1px,transparent 1px);
+    background-size:80px 80px;
+    pointer-events:none;z-index:0;
+  }
+
+  /* ═══ HEADER ═══ */
+  header {
+    position:relative;z-index:10;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 52px;height:70px;
+    border-bottom:1px solid var(--border);
+    background:rgba(4,8,14,0.88);
+    backdrop-filter:blur(20px);
+  }
+
+  .logo { display:flex;align-items:center;gap:14px; }
+
+  .logo-svg { width:42px;height:42px;flex-shrink:0; }
+
+  .logo-name {
+    font-family:var(--font-head);font-size:26px;letter-spacing:3px;
+    color:var(--cyan);display:block;line-height:1;
+  }
+  .logo-sub {
+    font-family:var(--font-mono);font-size:9.5px;color:var(--muted);
+    letter-spacing:2px;text-transform:uppercase;display:block;margin-top:3px;
+  }
+
+  /* MODE SWITCHER */
+  .mode-switcher {
+    display:flex;align-items:center;gap:4px;
+    background:var(--surface);border:1px solid var(--border2);
+    border-radius:10px;padding:4px;
+  }
+
+  .mode-btn {
+    display:flex;align-items:center;gap:8px;
+    padding:8px 22px;border-radius:7px;
+    font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    color:var(--muted);cursor:pointer;background:none;border:none;
+    transition:all 0.2s;white-space:nowrap;
+  }
+  .mode-btn:hover { color:var(--text); }
+  .mode-btn.active {
+    background:var(--surface2);color:var(--cyan);
+    border:1px solid rgba(0,245,255,0.2);
+    box-shadow:0 0 16px rgba(0,245,255,0.06);
+  }
+  .mode-btn .mi { font-size:15px; }
+
+  .hdr-right { display:flex;align-items:center;gap:20px; }
+
+  /* USER / AUTH BUTTON */
+  .user-btn {
+    display:flex;align-items:center;gap:9px;
+    background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.2);
+    border-radius:9px;padding:7px 14px;cursor:pointer;
+    font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;
+    color:var(--cyan);transition:all .2s;text-decoration:none;
+  }
+  .user-btn:hover { background:rgba(0,245,255,0.12); }
+  .user-avatar {
+    width:26px;height:26px;border-radius:50%;
+    background:linear-gradient(135deg,rgba(0,245,255,0.3),rgba(0,245,255,0.1));
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;color:var(--cyan);
+  }
+  .logout-btn {
+    background:none;border:none;cursor:pointer;
+    font-size:14px;color:var(--muted);padding:2px 6px;
+    transition:color .2s;border-left:1px solid var(--border2);margin-left:4px;
+  }
+  .logout-btn:hover { color:var(--red); }
+
+  .stats-bar { display:flex;gap:24px; }
+  .sbi { text-align:right; }
+  .sbv { font-family:var(--font-head);font-size:20px;letter-spacing:1px;color:var(--amber);display:block; }
+  .sbl { font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;display:block; }
+
+  .live-pill {
+    display:flex;align-items:center;gap:8px;
+    font-family:var(--font-mono);font-size:11px;color:var(--green);letter-spacing:1px;
+  }
+  .live-dot {
+    width:7px;height:7px;border-radius:50%;
+    background:var(--green);box-shadow:0 0 8px var(--green);
+    animation:blink 2.2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+  /* ═══ HERO ═══ */
+  .hero {
+    position:relative;z-index:1;
+    max-width:1380px;margin:0 auto;
+    padding:64px 52px 52px;
+    display:grid;grid-template-columns:1fr auto;gap:48px;align-items:center;
+  }
+
+  .hero-tag {
+    display:inline-flex;align-items:center;gap:8px;
+    background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.2);
+    border-radius:4px;padding:5px 14px;
+    font-family:var(--font-mono);font-size:10px;letter-spacing:2px;color:var(--cyan);
+    text-transform:uppercase;margin-bottom:22px;
+  }
+  .hero-tag::before {
+    content:'';width:6px;height:6px;border-radius:50%;
+    background:var(--cyan);box-shadow:0 0 8px var(--cyan);
+    animation:blink 2s infinite;
+  }
+
+  h1 {
+    font-family:var(--font-head);
+    font-size:clamp(50px,5.5vw,88px);
+    letter-spacing:4px;line-height:0.93;text-transform:uppercase;
+    margin-bottom:18px;
+  }
+  h1 .l1 { color:var(--text);display:block; }
+  h1 .l2 { color:transparent;-webkit-text-stroke:2px var(--cyan);opacity:0.65;display:block; }
+  h1 .l3 { color:var(--amber);display:block; }
+
+  .hero-desc {
+    color:var(--muted);font-size:15px;line-height:1.7;
+    max-width:500px;margin-bottom:24px;
+  }
+
+  .chips { display:flex;flex-wrap:wrap;gap:7px; }
+  .chip {
+    background:var(--surface);border:1px solid var(--border2);
+    border-radius:3px;padding:4px 11px;
+    font-family:var(--font-mono);font-size:10px;letter-spacing:0.8px;
+    color:var(--muted);text-transform:uppercase;
+    display:flex;align-items:center;gap:6px;
+  }
+  .chip::before {
+    content:'';width:5px;height:5px;border-radius:1px;
+    background:var(--cyan);opacity:0.55;
+  }
+
+  /* Shield visual */
+  .hero-shield { position:relative;width:170px;height:170px;flex-shrink:0; }
+  .sh-ring {
+    position:absolute;border-radius:50%;
+    border:1px solid rgba(0,245,255,0.12);
+    top:50%;left:50%;transform:translate(-50%,-50%);
+  }
+  .sh-ring:nth-child(1){width:170px;height:170px;}
+  .sh-ring:nth-child(2){width:126px;height:126px;border-color:rgba(255,183,0,0.1);}
+  .sh-ring:nth-child(3){width:82px;height:82px;border-color:rgba(255,45,85,0.08);}
+  .sh-sweep {
+    position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 75%,rgba(0,245,255,0.28) 100%);
+    animation:spin 3.5s linear infinite;
+  }
+  .sh-sweep2 {
+    position:absolute;inset:22px;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 70%,rgba(255,183,0,0.2) 100%);
+    animation:spin 5s linear infinite reverse;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .sh-icon {
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    font-size:52px;z-index:2;
+  }
+
+  /* ═══ WORKSPACE ═══ */
+  .workspace {
+    position:relative;z-index:1;
+    max-width:1380px;margin:0 auto 80px;padding:0 52px;
+    display:grid;grid-template-columns:1fr 1fr;gap:2px;
+  }
+
+  .ws-inner {
+    display:contents;
+  }
+
+  .ws-box {
+    border:1px solid var(--border);border-radius:0;overflow:hidden;
+  }
+  .ws-box:first-child { border-radius:14px 0 0 14px; border-right:none; }
+  .ws-box:last-child  { border-radius:0 14px 14px 0; }
+
+  /* ═══ INPUT PANEL ═══ */
+  .input-panel { background:var(--bg2);padding:32px; }
+
+  .sec-label {
+    font-family:var(--font-mono);font-size:9.5px;letter-spacing:3px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:26px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .sec-label::after { content:'';flex:1;height:1px;background:var(--border2); }
+
+  /* Mode panels */
+  .mp { display:none; }
+  .mp.active { display:block; }
+
+  /* Input label */
+  .inp-label {
+    font-family:var(--font-mono);font-size:10px;letter-spacing:2px;
+    text-transform:uppercase;color:var(--cyan);margin-bottom:10px;display:block;
+  }
+
+  /* DROP ZONE */
+  .drop-zone {
+    border:2px dashed var(--border2);border-radius:12px;
+    padding:42px 24px;text-align:center;cursor:pointer;
+    transition:all 0.3s;position:relative;overflow:hidden;
+    background:var(--surface);margin-bottom:12px;
+  }
+  .drop-zone::before {
+    content:'';position:absolute;inset:0;
+    background:radial-gradient(circle at center,rgba(0,245,255,0.05) 0%,transparent 70%);
+    opacity:0;transition:opacity 0.3s;
+  }
+  .drop-zone:hover,.drop-zone.drag-over {
+    border-color:var(--cyan);background:rgba(0,245,255,0.025);
+  }
+  .drop-zone:hover::before,.drop-zone.drag-over::before { opacity:1; }
+  .drop-zone input {
+    position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;
+  }
+  .dz-icon { font-size:42px;margin-bottom:12px;display:block;filter:grayscale(0.3); }
+  .dz-title {
+    font-family:var(--font-body);font-weight:700;font-size:16px;
+    margin-bottom:5px;color:var(--text);
+  }
+  .dz-sub {
+    font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.5px;
+  }
+
+  /* Preview */
+  .preview-wrap {
+    display:none;position:relative;border-radius:10px;overflow:hidden;
+    border:1px solid var(--border2);margin-bottom:12px;background:var(--surface);
+  }
+  .preview-wrap img { width:100%;max-height:220px;object-fit:contain;display:block; }
+  .preview-ov {
+    position:absolute;inset:0;background:rgba(4,8,14,0.72);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;transition:opacity 0.25s;
+  }
+  .preview-wrap:hover .preview-ov { opacity:1; }
+  .rm-btn {
+    background:var(--red-dim);border:1px solid rgba(255,45,85,0.38);
+    color:var(--red);border-radius:6px;padding:8px 18px;
+    font-family:var(--font-mono);font-size:12px;cursor:pointer;letter-spacing:1px;
+  }
+
+  /* Validation banners */
+  .val-banner {
+    display:none;border-radius:8px;padding:12px 15px;
+    font-size:13px;margin-bottom:12px;
+    align-items:flex-start;gap:10px;line-height:1.5;
+  }
+  .val-banner.show { display:flex; }
+  .val-banner.validating {
+    background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.2);color:var(--cyan);
+  }
+  .val-banner.err {
+    background:var(--red-dim);border:1px solid rgba(255,45,85,0.32);color:var(--red);
+  }
+  .val-banner.ok {
+    background:var(--green-dim);border:1px solid rgba(0,230,118,0.28);color:var(--green);
+  }
+  .val-icon { font-size:16px;flex-shrink:0;margin-top:1px; }
+  .val-main { font-family:var(--font-body);font-size:13px;font-weight:500; }
+  .val-sub { font-family:var(--font-mono);font-size:11px;opacity:0.65;margin-top:2px; }
+
+  .spinner {
+    width:16px;height:16px;border-radius:50%;
+    border:2px solid rgba(0,245,255,0.25);border-top-color:var(--cyan);
+    animation:spin 0.75s linear infinite;flex-shrink:0;margin-top:2px;
+  }
+
+  /* Tip box */
+  .tip-box {
+    background:rgba(0,245,255,0.04);border:1px solid rgba(0,245,255,0.1);
+    border-radius:8px;padding:10px 14px;margin-bottom:14px;
+    display:flex;gap:10px;align-items:flex-start;
+  }
+  .tip-box .ti { font-size:14px;flex-shrink:0; }
+  .tip-box span {
+    font-family:var(--font-mono);font-size:11px;color:var(--muted);
+    letter-spacing:0.3px;line-height:1.6;
+  }
+  .tip-box strong { color:var(--cyan); }
+
+  /* URL input */
+  .url-wrap { position:relative;margin-bottom:12px; }
+  .url-wrap .fi { position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:15px;color:var(--muted);pointer-events:none; }
+  .url-inp {
+    width:100%;background:var(--surface);border:1px solid var(--border2);
+    border-radius:8px;padding:15px 16px 15px 44px;
+    color:var(--text);font-family:var(--font-mono);font-size:13px;
+    outline:none;transition:all 0.25s;letter-spacing:0.3px;
+  }
+  .url-inp:focus {
+    border-color:var(--cyan);background:rgba(0,245,255,0.03);
+    box-shadow:0 0 0 3px rgba(0,245,255,0.06);
+  }
+  .url-inp::placeholder { color:var(--muted); }
+  .url-vi {
+    position:absolute;right:14px;top:50%;transform:translateY(-50%);
+    font-size:14px;display:none;
+  }
+
+  .platforms { display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:14px; }
+  .pt { font-family:var(--font-mono);font-size:10px;color:var(--muted); }
+  .pt-tag {
+    background:var(--surface);border:1px solid var(--border2);
+    border-radius:4px;padding:3px 8px;
+    font-family:var(--font-mono);font-size:10px;color:var(--muted);
+  }
+
+  /* ANALYZE BUTTON */
+  .btn-scan {
+    width:100%;
+    background:linear-gradient(135deg,rgba(0,245,255,0.10),rgba(0,245,255,0.05));
+    border:1px solid rgba(0,245,255,0.32);color:var(--cyan);
+    border-radius:9px;padding:16px;
+    font-family:var(--font-head);font-size:18px;letter-spacing:3px;text-transform:uppercase;
+    cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;
+  }
+  .btn-scan:hover:not(:disabled) {
+    background:rgba(0,245,255,0.14);color:#fff;
+    box-shadow:0 0 28px rgba(0,245,255,0.14),0 0 56px rgba(0,245,255,0.05);
+    transform:translateY(-1px);
+  }
+  .btn-scan:active:not(:disabled) { transform:translateY(0); }
+  .btn-scan:disabled { opacity:0.3;cursor:not-allowed; }
+  .btn-inner {
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    position:relative;z-index:1;
+  }
+  .btn-arrow { transition:transform 0.2s; }
+  .btn-scan:hover:not(:disabled) .btn-arrow { transform:translateX(5px); }
+
+  /* ═══ RESULTS PANEL ═══ */
+  .results-panel {
+    background:var(--bg);padding:32px;position:relative;overflow-y:auto;
+    max-height:calc(100vh - 200px);
+  }
+
+  /* scan line */
+  .results-panel::after {
+    content:'';position:absolute;top:-4px;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+    opacity:0;pointer-events:none;
+    transition:opacity 0.3s;
+  }
+  .results-panel.scanning::after {
+    opacity:1;
+    animation:scan-fall 2.5s linear infinite;
+  }
+  @keyframes scan-fall { 0%{transform:translateY(0)} 100%{transform:translateY(700px)} }
+
+  /* Empty state */
+  .empty-state {
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:440px;text-align:center;gap:20px;
+  }
+  .radar-wrap { position:relative;width:130px;height:130px; }
+  .rr {
+    position:absolute;border-radius:50%;border:1px solid rgba(0,245,255,0.1);
+    top:50%;left:50%;transform:translate(-50%,-50%);
+  }
+  .rr:nth-child(1){width:38px;height:38px;}
+  .rr:nth-child(2){width:72px;height:72px;}
+  .rr:nth-child(3){width:116px;height:116px;}
+  .r-sweep {
+    position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 78%,rgba(0,245,255,0.25) 100%);
+    animation:spin 3.2s linear infinite;
+  }
+  .r-dot {
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:8px;height:8px;border-radius:50%;
+    background:var(--cyan);box-shadow:0 0 12px var(--cyan);
+  }
+  .empty-lbl {
+    font-family:var(--font-head);font-size:22px;letter-spacing:3px;color:var(--muted);opacity:0.45;
+  }
+  .empty-sub {
+    font-family:var(--font-mono);font-size:11px;color:var(--muted);opacity:0.4;letter-spacing:1px;
+  }
+
+  /* Results */
+  .results-body { display:none; }
+  .results-body.show { display:block; }
+
+  .demo-note {
+    background:rgba(255,183,0,0.06);border:1px solid rgba(255,183,0,0.22);
+    border-radius:6px;padding:9px 13px;
+    font-family:var(--font-mono);font-size:11px;color:var(--amber);
+    margin-bottom:16px;letter-spacing:0.4px;display:none;
+  }
+
+  /* Verdict */
+  .verdict-card {
+    border-radius:12px;padding:24px;
+    position:relative;overflow:hidden;margin-bottom:16px;
+  }
+  .verdict-card.fake {
+    background:linear-gradient(135deg,rgba(255,45,85,0.08),rgba(255,45,85,0.03));
+    border:1px solid rgba(255,45,85,0.28);
+  }
+  .verdict-card.real {
+    background:linear-gradient(135deg,rgba(0,230,118,0.08),rgba(0,230,118,0.03));
+    border:1px solid rgba(0,230,118,0.28);
+  }
+  .verdict-card::before {
+    content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  }
+  .verdict-card.fake::before { background:var(--red); }
+  .verdict-card.real::before { background:var(--green); }
+
+  .v-top { display:flex;align-items:center;justify-content:space-between;margin-bottom:20px; }
+  .v-main { display:flex;align-items:center;gap:16px; }
+  .v-glyph { font-size:42px;line-height:1; }
+  .v-word {
+    font-family:var(--font-head);font-size:40px;letter-spacing:4px;line-height:1;
+  }
+  .v-word.fake { color:var(--red); }
+  .v-word.real { color:var(--green); }
+  .v-conf { font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.5px; }
+
+  .risk-badge {
+    font-family:var(--font-head);font-size:14px;letter-spacing:2px;
+    padding:7px 15px;border-radius:4px;
+  }
+  .risk-badge.LOW { background:var(--green-dim);color:var(--green);border:1px solid rgba(0,230,118,0.28); }
+  .risk-badge.MEDIUM { background:var(--amber-dim);color:var(--amber);border:1px solid rgba(255,183,0,0.28); }
+  .risk-badge.HIGH { background:var(--red-dim);color:var(--red);border:1px solid rgba(255,45,85,0.28); }
+  .risk-badge.CRITICAL { background:rgba(255,0,50,0.12);color:#ff0040;border:1px solid rgba(255,0,50,0.35); }
+
+  .prob-row { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px; }
+  .prob-box { background:rgba(0,0,0,0.22);border-radius:8px;padding:12px; }
+  .prob-lbl { font-family:var(--font-mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:5px; }
+  .prob-num { font-family:var(--font-head);font-size:30px;letter-spacing:1px;line-height:1;margin-bottom:7px; }
+  .prob-num.fake { color:var(--red); }
+  .prob-num.real { color:var(--green); }
+  .prob-bar { height:3px;background:rgba(255,255,255,0.05);border-radius:2px; }
+  .prob-fill { height:100%;border-radius:2px;transition:width 1.2s cubic-bezier(0.4,0,0.2,1); }
+  .prob-fill.fake { background:var(--red);box-shadow:0 0 6px var(--red); }
+  .prob-fill.real { background:var(--green);box-shadow:0 0 6px var(--green); }
+
+  .v-summary {
+    font-size:13px;color:var(--muted);line-height:1.6;font-style:italic;
+    padding:11px 13px;background:rgba(0,0,0,0.18);border-radius:6px;
+    border-left:2px solid rgba(0,245,255,0.18);
+  }
+
+  /* Detail cards */
+  .det-card {
+    background:var(--surface);border:1px solid var(--border2);
+    border-radius:10px;overflow:hidden;margin-bottom:10px;
+  }
+  .det-head {
+    padding:11px 15px;border-bottom:1px solid var(--border);
+    font-family:var(--font-mono);font-size:9.5px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--muted);display:flex;align-items:center;gap:8px;
+  }
+  .det-body { padding:13px 15px; }
+
+  /* Signals */
+  .sig-list { display:flex;flex-direction:column;gap:5px; }
+  .sig-item {
+    padding:8px 11px;border-radius:5px;font-size:13px;line-height:1.5;border-left:2px solid;
+  }
+  .sig-item.bad { background:rgba(255,45,85,0.05);border-color:var(--red);color:#ffb3bc; }
+  .sig-item.warn { background:rgba(255,183,0,0.05);border-color:var(--amber);color:#ffd880; }
+  .sig-item.good { background:rgba(0,230,118,0.05);border-color:var(--green);color:#80ffc0; }
+
+  /* Keywords */
+  .kw-wrap { display:flex;flex-wrap:wrap;gap:6px; }
+  .kw { border-radius:4px;padding:4px 9px;font-family:var(--font-mono);font-size:11px;letter-spacing:0.5px; }
+  .kw.bad { background:rgba(255,45,85,0.09);color:var(--red);border:1px solid rgba(255,45,85,0.22); }
+  .kw.good { background:rgba(0,230,118,0.09);color:var(--green);border:1px solid rgba(0,230,118,0.22); }
+
+  /* Risk factors */
+  .rf-list { display:flex;flex-direction:column; }
+  .rf-row { display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border); }
+  .rf-row:last-child { border-bottom:none; }
+  .rf-tag { font-family:var(--font-mono);font-size:9px;letter-spacing:1px;padding:3px 7px;border-radius:3px;flex-shrink:0;text-transform:uppercase; }
+  .rf-tag.HIGH { background:rgba(255,45,85,0.13);color:var(--red); }
+  .rf-tag.MEDIUM { background:rgba(255,183,0,0.13);color:var(--amber); }
+  .rf-tag.LOW { background:var(--cyan-dim);color:var(--cyan); }
+  .rf-name { font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px; }
+  .rf-kw { font-family:var(--font-mono);font-size:11px;color:var(--muted); }
+
+  /* Component bars */
+  .comp-list { display:flex;flex-direction:column;gap:9px; }
+  .comp-row { display:grid;grid-template-columns:130px 1fr 46px;align-items:center;gap:9px; }
+  .comp-name { font-family:var(--font-mono);font-size:10px;color:var(--muted); }
+  .comp-bar { height:5px;background:rgba(255,255,255,0.04);border-radius:3px;overflow:hidden; }
+  .comp-fill { height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cyan),rgba(0,245,255,0.45));transition:width 1s ease; }
+  .comp-fill.hot { background:linear-gradient(90deg,var(--red),var(--amber)); }
+  .comp-score { font-family:var(--font-mono);font-size:11px;text-align:right; }
+
+  .rec-n {
+    font-family:var(--font-mono);font-size:10px;background:var(--border2);color:var(--cyan);
+    width:22px;height:22px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;
+  }
+
+  /* ═══ LOADING OVERLAY ═══ */
+  .load-ov {
+    display:none;position:fixed;inset:0;
+    background:rgba(4,8,14,0.93);backdrop-filter:blur(18px);
+    z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+  }
+  .load-ov.on { display:flex; }
+
+  .load-core { position:relative;width:100px;height:100px;display:flex;align-items:center;justify-content:center; }
+  .lr {
+    position:absolute;border-radius:50%;
+  }
+  .lr:nth-child(1){ inset:0;border:2px solid rgba(0,245,255,0.1);border-top-color:var(--cyan);animation:spin 1s linear infinite; }
+  .lr:nth-child(2){ inset:12px;border:2px solid rgba(255,183,0,0.1);border-bottom-color:var(--amber);animation:spin 0.72s linear infinite reverse; }
+  .lr:nth-child(3){ inset:24px;border:1px solid rgba(255,45,85,0.1);border-left-color:var(--red);animation:spin 1.32s linear infinite; }
+  .load-icon { font-size:26px;position:relative;z-index:1; }
+
+  .load-lbl { font-family:var(--font-head);font-size:22px;letter-spacing:4px;color:var(--cyan); }
+
+  .load-steps { display:flex;flex-direction:column;gap:8px; }
+  .lstep {
+    display:flex;align-items:center;gap:10px;
+    font-family:var(--font-mono);font-size:12px;color:var(--muted);
+    opacity:0.38;transition:all 0.4s;letter-spacing:0.5px;
+  }
+  .lstep.on { color:var(--text);opacity:1; }
+  .lstep.done { color:var(--green);opacity:0.75; }
+  .ldot { width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0;transition:background 0.4s; }
+  .lstep.on .ldot { background:var(--cyan);box-shadow:0 0 6px var(--cyan); }
+  .lstep.done .ldot { background:var(--green); }
+
+  /* ═══ TOAST ═══ */
+  .toast {
+    display:none;position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
+    padding:13px 24px;border-radius:8px;font-family:var(--font-mono);font-size:13px;
+    z-index:300;backdrop-filter:blur(10px);max-width:500px;text-align:center;
+  }
+  .toast.err {
+    background:rgba(255,45,85,0.12);border:1px solid rgba(255,45,85,0.38);
+    color:var(--red);display:block;animation:ti 0.3s ease;
+  }
+  @keyframes ti { from{transform:translate(-50%,18px);opacity:0} to{transform:translate(-50%,0);opacity:1} }
+
+  /* ═══ FADE ANIMS ═══ */
+  @keyframes fu { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .fa { animation:fu 0.5s ease forwards; }
+  .d1{animation-delay:0.1s;opacity:0} .d2{animation-delay:0.2s;opacity:0}
+  .d3{animation-delay:0.3s;opacity:0} .d4{animation-delay:0.4s;opacity:0}
+
+  /* ═══ RESPONSIVE ═══ */
+  @media(max-width:1050px){
+    header{padding:0 24px;}
+    .hero{padding:44px 24px 36px;grid-template-columns:1fr;}
+    .hero-shield{display:none;}
+    .workspace{grid-template-columns:1fr;padding:0 24px;}
+    .ws-box:first-child{border-radius:12px 12px 0 0;border-right:1px solid var(--border);border-bottom:none;}
+    .ws-box:last-child{border-radius:0 0 12px 12px;}
+    .stats-bar{display:none;}
+    .results-panel{max-height:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora"><div class="ab"></div><div class="ab"></div><div class="ab"></div></div>
+<div class="grid-lines"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <svg class="logo-svg" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M21 2L3 9.5V21C3 31.3 11.5 40.5 21 43C30.5 40.5 39 31.3 39 21V9.5L21 2Z"
+            fill="rgba(0,245,255,0.07)" stroke="rgba(0,245,255,0.45)" stroke-width="1.4"/>
+      <path d="M21 9L9 13.5V21C9 27.5 14.5 33.4 21 35.2C27.5 33.4 33 27.5 33 21V13.5L21 9Z"
+            fill="rgba(0,245,255,0.09)" stroke="rgba(0,245,255,0.28)" stroke-width="1"/>
+      <circle cx="21" cy="21" r="3.8" fill="#00f5ff" opacity="0.82"/>
+    </svg>
+    <div>
+      <span class="logo-name">AI BASED FAKE JOB DETECTION </span>
+      <span class="logo-sub"></span>
+    </div>
+  </div>
+
+  <div class="mode-switcher">
+    <button class="mode-btn active" id="mImg" onclick="setMode('image')">
+      <span class="mi">📸</span>Image Upload
+    </button>
+    <button class="mode-btn" id="mUrl" onclick="setMode('url')">
+      <span class="mi">🔗</span>URL / Link
+    </button>
+  </div>
+
+  <div class="hdr-right">
+    <div class="stats-bar">
+      <div class="sbi"><span class="sbv">94.7%</span><span class="sbl">Accuracy</span></div>
+      <div class="sbi"><span class="sbv">400K</span><span class="sbl">Dataset</span></div>
+      <div class="sbi"><span class="sbv">3</span><span class="sbl">AI Models</span></div>
+    </div>
+    <div class="live-pill"><div class="live-dot"></div>AI Online</div>
+    <div id="authNav"></div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div>
+    <div class="hero-tag">AI-Powered Employment Fraud Detection</div>
+    <h1>
+      <span class="l1">Detect</span>
+      <span class="l2">Fake Jobs</span>
+      <span class="l3">Instantly.</span>
+    </h1>
+    <p class="hero-desc">
+      Upload a job screenshot or paste a link. Our hybrid AI analyzes fraud patterns,
+      suspicious language and structural anomalies — protecting you from employment scams in seconds.
+    </p>
+    <div class="chips">
+      <span class="chip">Random Forest</span>
+      <span class="chip">Logistic Regression</span>
+      <span class="chip">NLP Analysis</span>
+      <span class="chip">OCR Extraction</span>
+      <span class="chip">Vision AI Validation</span>
+    </div>
+  </div>
+  <div class="hero-shield">
+    <div class="sh-ring"></div>
+    <div class="sh-ring"></div>
+    <div class="sh-ring"></div>
+    <div class="sh-sweep"></div>
+    <div class="sh-sweep2"></div>
+    <div class="sh-icon">🛡️</div>
+  </div>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+  <!-- INPUT PANEL -->
+  <div class="ws-box input-panel">
+    <div class="sec-label">Input</div>
+
+    <!-- IMAGE MODE -->
+    <div class="mp active" id="mp-image">
+      <label class="inp-label">Job Posting Screenshot</label>
+
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
+        <span class="dz-icon">📋</span>
+        <div class="dz-title">Drop Job Screenshot Here</div>
+        <div class="dz-sub">PNG · JPG · WEBP · GIF · max 10 MB</div>
+      </div>
+
+      <div class="preview-wrap" id="previewWrap">
+        <img id="previewImg" src="" alt="Preview">
+        <div class="preview-ov">
+          <button class="rm-btn" onclick="clearImage()">✕ Remove Image</button>
+        </div>
+      </div>
+
+      <!-- Validation banners -->
+      <div class="val-banner validating" id="valA">
+        <div class="spinner"></div>
+        <div>
+          <div class="val-main">Verifying with Vision AI…</div>
+          <div class="val-sub">Checking if this is a job-related image</div>
+        </div>
+      </div>
+      <div class="val-banner err" id="valB">
+        <span class="val-icon">🚫</span>
+        <div>
+          <div class="val-main" id="valBtxt">Not a job-related image.</div>
+          <div class="val-sub">Please upload a screenshot of a job posting, job ad, or recruitment message.</div>
+        </div>
+      </div>
+      <div class="val-banner ok" id="valC">
+        <span class="val-icon">✅</span>
+        <div>
+          <div class="val-main" id="valCtxt">Job-related image confirmed.</div>
+          <div class="val-sub" id="valCsub">Ready to scan for fraud signals.</div>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <span class="ti">💡</span>
+        <span>Capture screenshots from <strong>WhatsApp, Telegram, email, or any job portal.</strong> Only job-related images are accepted — Vision AI will verify your upload automatically.</span>
+      </div>
+
+      <button class="btn-scan" id="btnImg" onclick="analyze('image')" disabled>
+        <div class="btn-inner">Scan for Fraud <span class="btn-arrow">→</span></div>
+      </button>
+    </div>
+
+    <!-- URL MODE -->
+    <div class="mp" id="mp-url">
+      <label class="inp-label">Job Posting URL</label>
+      <div class="url-wrap">
+        <span class="fi">🔗</span>
+        <input class="url-inp" type="url" id="urlInp" placeholder="https://linkedin.com/jobs/view/…" oninput="onUrlInput(this)">
+        <span class="url-vi" id="urlVi"></span>
+      </div>
+
+      <div class="platforms">
+        <span class="pt">Supports:</span>
+        <span class="pt-tag">LinkedIn</span>
+        <span class="pt-tag">Indeed</span>
+        <span class="pt-tag">Glassdoor</span>
+        <span class="pt-tag">Monster</span>
+        <span class="pt-tag">Any Job URL</span>
+      </div>
+
+      <div class="tip-box" style="margin-bottom:14px;">
+        <span class="ti">🌐</span>
+        <span>Our scraper extracts title, company, salary and description automatically. Paste the <strong>full public job listing URL.</strong></span>
+      </div>
+
+      <button class="btn-scan" id="btnUrl" onclick="analyze('url')" disabled>
+        <div class="btn-inner">Scan for Fraud <span class="btn-arrow">→</span></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- RESULTS PANEL -->
+  <div class="ws-box results-panel" id="resultsPanel">
+
+    <div class="sec-label">Analysis Result</div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="radar-wrap">
+        <div class="rr"></div><div class="rr"></div><div class="rr"></div>
+        <div class="r-sweep"></div>
+        <div class="r-dot"></div>
+      </div>
+      <div class="empty-lbl">Awaiting Input</div>
+      <div class="empty-sub">Submit a job posting to begin analysis</div>
+    </div>
+
+    <!-- Results body -->
+    <div class="results-body" id="resultsBody">
+      <div class="demo-note" id="demoNote">
+        ⚡ DEMO MODE — Backend not detected. Showing a simulated result. Start the Python backend to analyze real postings.
+      </div>
+
+      <!-- Verdict -->
+      <div class="verdict-card fa" id="vCard">
+        <div class="v-top">
+          <div class="v-main">
+            <div class="v-glyph" id="vGlyph"></div>
+            <div>
+              <div class="v-word" id="vWord"></div>
+              <div class="v-conf" id="vConf"></div>
+            </div>
+          </div>
+          <div class="risk-badge" id="rBadge"></div>
+        </div>
+        <div class="prob-row">
+          <div class="prob-box">
+            <div class="prob-lbl">Fake Probability</div>
+            <div class="prob-num fake" id="fp">—</div>
+            <div class="prob-bar"><div class="prob-fill fake" id="ff" style="width:0%"></div></div>
+          </div>
+          <div class="prob-box">
+            <div class="prob-lbl">Legitimate Probability</div>
+            <div class="prob-num real" id="rp">—</div>
+            <div class="prob-bar"><div class="prob-fill real" id="rf" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="v-summary" id="vSum"></div>
+      </div>
+
+      <!-- Signals -->
+      <div class="det-card fa d1">
+        <div class="det-head">⚡ Detection Signals</div>
+        <div class="det-body"><div class="sig-list" id="sigList"></div></div>
+      </div>
+
+      <!-- Keywords -->
+      <div class="det-card fa d2" id="kwCard">
+        <div class="det-head" id="kwHead">🔴 Suspicious Keywords</div>
+        <div class="det-body"><div class="kw-wrap" id="kwList"></div></div>
+      </div>
+
+      <!-- Risk factors -->
+      <div class="det-card fa d2" id="rfCard">
+        <div class="det-head">⚠️ Risk Factor Analysis</div>
+        <div class="det-body"><div class="rf-list" id="rfList"></div></div>
+      </div>
+
+      <!-- Model breakdown -->
+      <div class="det-card fa d3">
+        <div class="det-head">🤖 AI Model Breakdown</div>
+        <div class="det-body"><div class="comp-list" id="compList"></div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div class="load-ov" id="loadOv">
+  <div class="load-core">
+    <div class="lr"></div><div class="lr"></div><div class="lr"></div>
+    <div class="load-icon">🛡️</div>
+  </div>
+  <div class="load-lbl" id="loadLbl">Scanning…</div>
+  <div class="load-steps">
+    <div class="lstep" id="ls0"><div class="ldot"></div>Receiving input data</div>
+    <div class="lstep" id="ls1"><div class="ldot"></div>Extracting text features</div>
+    <div class="lstep" id="ls2"><div class="ldot"></div>Running Random Forest classifier</div>
+    <div class="lstep" id="ls3"><div class="ldot"></div>Logistic regression analysis</div>
+    <div class="lstep" id="ls4"><div class="ldot"></div>NLP pattern matching</div>
+    <div class="lstep" id="ls5"><div class="ldot"></div>Computing ensemble score</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   FraudShield — Client Logic
+   Two inputs only: Image Upload + URL
+═══════════════════════════════════════════ */
+
+const API   = 'http://localhost:8000/api/v1';
+const AAPI  = 'https://api.anthropic.com/v1/messages';
+
+let curMode       = 'image';
+let selFile       = null;
+let valState      = 'none';   // none | validating | valid | invalid
+let urlTimer      = null;
+let loadTimer     = null;
+
+// ── Mode switch ────────────────────────────
+function setMode(m) {
+  curMode = m;
+  document.getElementById('mImg').classList.toggle('active', m==='image');
+  document.getElementById('mUrl').classList.toggle('active', m==='url');
+  document.getElementById('mp-image').classList.toggle('active', m==='image');
+  document.getElementById('mp-url').classList.toggle('active', m==='url');
+}
+
+// ── URL field ──────────────────────────────
+function onUrlInput(el) {
+  const v = el.value.trim();
+  const btn = document.getElementById('btnUrl');
+  const vi  = document.getElementById('urlVi');
+  clearTimeout(urlTimer);
+  if (!v) { btn.disabled=true; vi.style.display='none'; return; }
+  urlTimer = setTimeout(() => {
+    try {
+      const u = new URL(v);
+      const ok = u.protocol==='http:'||u.protocol==='https:';
+      btn.disabled = !ok;
+      vi.style.display = 'block';
+      vi.textContent = ok ? '✓' : '✕';
+      vi.style.color = ok ? 'var(--green)' : 'var(--red)';
+    } catch {
+      btn.disabled=true;
+      vi.style.display='block';vi.textContent='✕';vi.style.color='var(--red)';
+    }
+  }, 280);
+}
+
+// ── Drag & drop ────────────────────────────
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e=>{
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) processFile(f);
+});
+
+function handleFile(e){ const f=e.target.files[0]; if(f) processFile(f); }
+
+function processFile(file) {
+  selFile    = file;
+  valState   = 'none';
+  clearValBanners();
+  document.getElementById('btnImg').disabled = true;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('previewImg').src = ev.target.result;
+    document.getElementById('previewWrap').style.display = 'block';
+    dz.style.display = 'none';
+    validateWithAI(file, ev.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImage() {
+  selFile=null; valState='none';
+  document.getElementById('fileInput').value='';
+  document.getElementById('previewImg').src='';
+  document.getElementById('previewWrap').style.display='none';
+  dz.style.display='block';
+  clearValBanners();
+  document.getElementById('btnImg').disabled=true;
+}
+
+function clearValBanners() {
+  ['valA','valB','valC'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.remove('show');
+  });
+}
+
+// ── Vision AI validation ───────────────────
+async function validateWithAI(file, dataUrl) {
+  valState = 'validating';
+  clearValBanners();
+  document.getElementById('valA').classList.add('show');
+  document.getElementById('btnImg').disabled = true;
+
+  const b64  = dataUrl.split(',')[1];
+  const mime = file.type;
+
+  try {
+    const res = await fetch(AAPI, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:200,
+        messages:[{
+          role:'user',
+          content:[
+            { type:'image', source:{ type:'base64', media_type:mime, data:b64 } },
+            { type:'text', text:`You are an image classifier for a job fraud detection system.
+Analyze this image and determine if it is job-related.
+Job-related images include: job postings, job ads, job descriptions, job offer letters, recruitment messages, screenshots from LinkedIn/Indeed/Glassdoor/WhatsApp job groups/email job alerts, payroll slips, employment contracts.
+
+Respond ONLY with a raw JSON object (no markdown fences, no extra text):
+{"is_job_related":true,"confidence":"high","detected_as":"brief label","reason":"one concise sentence"}` }
+          ]
+        }]
+      })
+    });
+
+    const data = await res.json();
+    const raw  = (data.content?.[0]?.text || '{}').replace(/```json|```/g,'').trim();
+    let result;
+    try { result = JSON.parse(raw); }
+    catch { result = { is_job_related:false, detected_as:'Unknown image', reason:'Could not parse AI response.' }; }
+
+    clearValBanners();
+
+    if (result.is_job_related) {
+      valState = 'valid';
+      document.getElementById('valCtxt').textContent =
+        'Confirmed: ' + (result.detected_as || 'Job-related image detected');
+      document.getElementById('valCsub').textContent =
+        result.reason || 'Ready to scan for fraud signals.';
+      document.getElementById('valC').classList.add('show');
+      document.getElementById('btnImg').disabled = false;
+    } else {
+      valState = 'invalid';
+      document.getElementById('valBtxt').textContent =
+        'Not job-related: ' + (result.detected_as || 'Unrecognised image content');
+      document.getElementById('valB').classList.add('show');
+      document.getElementById('btnImg').disabled = true;
+      // Auto-clear after 4s so user can try again
+      setTimeout(() => clearImage(), 4200);
+    }
+
+  } catch {
+    // API unavailable → fallback allow
+    clearValBanners();
+    valState = 'valid';
+    document.getElementById('valCtxt').textContent = 'Image accepted (offline mode)';
+    document.getElementById('valCsub').textContent = 'Vision AI unavailable — proceeding with analysis.';
+    document.getElementById('valC').classList.add('show');
+    document.getElementById('btnImg').disabled = false;
+  }
+}
+
+// ── Loading animation ──────────────────────
+function showLoading(mode) {
+  document.getElementById('loadOv').classList.add('on');
+  document.getElementById('resultsPanel').classList.add('scanning');
+  document.getElementById('loadLbl').textContent =
+    mode==='image' ? '🖼️  Scanning Image' : '🌐  Scanning URL';
+
+  const steps = document.querySelectorAll('.lstep');
+  steps.forEach(s=>s.classList.remove('on','done'));
+  let idx=0;
+  loadTimer = setInterval(()=>{
+    if(idx<steps.length){
+      if(idx>0) steps[idx-1].classList.replace('on','done');
+      steps[idx].classList.add('on');
+      idx++;
+    }
+  }, 480);
+}
+
+function hideLoading() {
+  clearInterval(loadTimer);
+  document.getElementById('loadOv').classList.remove('on');
+  document.getElementById('resultsPanel').classList.remove('scanning');
+}
+
+// ── Toast ──────────────────────────────────
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast err';
+  setTimeout(()=>{ t.className='toast'; },5000);
+}
+
+// ── Main analyze ───────────────────────────
+async function analyze(type) {
+  clearResults();
+  let response;
+  try {
+    if (type==='image') {
+      if (!selFile || valState!=='valid') {
+        showToast('⚠️ Please upload a valid job-related image first.'); return;
+      }
+      showLoading('image');
+      const fd=new FormData();
+      fd.append('file', selFile);
+      response = await fetch(`${API}/analyze/image`,{method:'POST',body:fd});
+
+    } else {
+      const url=document.getElementById('urlInp').value.trim();
+      if(!url){ showToast('⚠️ Please enter a job posting URL'); return; }
+      showLoading('url');
+      response = await fetch(`${API}/analyze/url`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url})
+      });
+    }
+
+    await new Promise(r=>setTimeout(r,2900)); // let animation play
+    hideLoading();
+
+    if(!response.ok){
+      const e=await response.json();
+      throw new Error(e.detail||'Analysis failed');
+    }
+    renderResults(await response.json(), false);
+
+  } catch(err) {
+    hideLoading();
+    const isNetErr = err.message.includes('fetch')||err.message.includes('Failed')||err.message.includes('NetworkError')||err.message.includes('Load failed');
+    if (isNetErr) {
+      renderResults(demoResult(), true);
+    } else {
+      showToast('⚠️ '+err.message);
+    }
+  }
+}
+
+// ── Demo result ────────────────────────────
+function demoResult() {
+  const fake = Math.random()>0.42;
+  return {
+    is_fake: fake,
+    confidence_score: fake ? 87.3 : 91.2,
+    fake_probability: fake ? 0.873 : 0.088,
+    real_probability: fake ? 0.127 : 0.912,
+    risk_level:{ level: fake?'HIGH':'LOW', label: fake?'High Risk':'Low Risk' },
+    explanation:{
+      model_explanation: fake
+        ? 'Hybrid AI detected 4 fraud indicators including 2 HIGH-severity patterns. Random Forest flagged structural anomalies; Logistic Regression found suspicious language; NLP matched known fraud keywords. Ensemble confidence: 87.3% fake probability.'
+        : 'Predominantly legitimate signals detected. Structural completeness, professional language, and the absence of common fraud indicators contribute to a 91.2% legitimacy score. Always verify independently before sharing personal information.',
+      reasons: fake ? [
+        '⚠️ Payment Required: Keywords — registration fee, training fee',
+        '⚠️ Urgency Pressure: Keywords — urgent, apply immediately',
+        '⚠️ Unrealistic Salary: Keywords — earn $5000 weekly',
+        '⚠️ No company name provided',
+        '⚠️ Excessive exclamation marks detected (8)',
+        '⚠️ Vague job description — fraudulent postings are often intentionally vague'
+      ] : [
+        '✅ Legitimate signal: equal opportunity employer',
+        '✅ Complete structural information provided',
+        '✅ Professional language patterns throughout',
+        '✅ Proper qualifications and requirements listed',
+        '✅ Verified job platform source'
+      ],
+      risk_factors: fake ? [
+        {factor:'Payment Required',keywords:['registration fee','training fee'],severity:'HIGH'},
+        {factor:'Urgency Pressure',keywords:['urgent','apply immediately'],severity:'MEDIUM'},
+        {factor:'Unrealistic Salary',keywords:['earn $5000 weekly'],severity:'HIGH'}
+      ] : [],
+      highlighted_keywords: fake ? ['registration fee','urgent','earn $5000 weekly','apply immediately','no experience needed'] : [],
+      legitimate_signals: fake ? [] : ['equal opportunity employer','health insurance','401k match','performance review cycle'],
+      component_breakdown:{
+        random_forest: fake?0.82:0.12,
+        logistic_regression: fake?0.79:0.09,
+        nlp_analysis: fake?0.91:0.07,
+        ensemble: fake?0.873:0.088
+      }
+    }
+  };
+}
+
+// ── Render results ─────────────────────────
+function renderResults(d, demo) {
+  const fake = d.is_fake;
+  const exp  = d.explanation;
+  const fP   = Math.round(d.fake_probability*100);
+  const rP   = Math.round(d.real_probability*100);
+
+  if (demo) document.getElementById('demoNote').style.display='block';
+
+  // Verdict card
+  const vc=document.getElementById('vCard');
+  vc.className='verdict-card fa '+(fake?'fake':'real');
+  document.getElementById('vGlyph').textContent = fake?'🚨':'✅';
+  const vw=document.getElementById('vWord');
+  vw.textContent=fake?'FRAUDULENT':'LEGITIMATE';
+  vw.className='v-word '+(fake?'fake':'real');
+  document.getElementById('vConf').textContent = fake
+    ? `Classified FAKE with ${d.confidence_score}% confidence`
+    : `Classified REAL with ${(100-d.confidence_score).toFixed(1)}% confidence`;
+
+  const rb=document.getElementById('rBadge');
+  rb.className='risk-badge '+d.risk_level.level;
+  rb.textContent=d.risk_level.label;
+
+  document.getElementById('fp').textContent=fP+'%';
+  document.getElementById('rp').textContent=rP+'%';
+  setTimeout(()=>{
+    document.getElementById('ff').style.width=fP+'%';
+    document.getElementById('rf').style.width=rP+'%';
+  },100);
+  document.getElementById('vSum').textContent=exp.model_explanation;
+
+  // Signals
+  document.getElementById('sigList').innerHTML=exp.reasons.map(r=>{
+    const c=r.startsWith('✅')?'good':r.includes('RED FLAG')?'bad':'warn';
+    return `<div class="sig-item ${c}">${r}</div>`;
+  }).join('');
+
+  // Keywords
+  const kwCard=document.getElementById('kwCard');
+  if (exp.highlighted_keywords?.length||exp.legitimate_signals?.length) {
+    kwCard.style.display='';
+    if (fake) {
+      document.getElementById('kwHead').textContent='🔴 Suspicious Keywords Detected';
+      document.getElementById('kwList').innerHTML=
+        exp.highlighted_keywords.map(k=>`<span class="kw bad">${k}</span>`).join('');
+    } else {
+      document.getElementById('kwHead').textContent='✅ Legitimate Signals Found';
+      document.getElementById('kwList').innerHTML=
+        exp.legitimate_signals.map(k=>`<span class="kw good">✓ ${k}</span>`).join('');
+    }
+  } else { kwCard.style.display='none'; }
+
+  // Risk factors
+  const rfCard=document.getElementById('rfCard');
+  if (exp.risk_factors?.length) {
+    rfCard.style.display='';
+    document.getElementById('rfList').innerHTML=exp.risk_factors.map(rf=>`
+      <div class="rf-row">
+        <span class="rf-tag ${rf.severity}">${rf.severity}</span>
+        <div>
+          <div class="rf-name">${rf.factor}</div>
+          ${rf.keywords?.length?`<div class="rf-kw">Keywords: ${rf.keywords.join(', ')}</div>`:''}
+        </div>
+      </div>`).join('');
+  } else { rfCard.style.display='none'; }
+
+  // Component breakdown
+  const cNames={random_forest:'Random Forest',logistic_regression:'Logistic Regression',nlp_analysis:'NLP Analysis',ensemble:'Ensemble Score'};
+  document.getElementById('compList').innerHTML=Object.entries(exp.component_breakdown).map(([k,v])=>{
+    const pct=Math.round(v*100);
+    return `<div class="comp-row">
+      <div class="comp-name">${cNames[k]||k}</div>
+      <div class="comp-bar"><div class="comp-fill ${pct>50?'hot':''}" style="width:0%" data-w="${pct}"></div></div>
+      <div class="comp-score" style="color:${pct>50?'var(--red)':'var(--green)'}">${pct}%</div>
+    </div>`;
+  }).join('');
+  setTimeout(()=>{
+    document.querySelectorAll('.comp-fill[data-w]').forEach(el=>el.style.width=el.dataset.w+'%');
+  },220);
+
+  // Show
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('resultsBody').classList.add('show');
+  document.getElementById('resultsBody').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function clearResults() {
+  document.getElementById('emptyState').style.display='flex';
+  document.getElementById('resultsBody').classList.remove('show');
+  document.getElementById('demoNote').style.display='none';
+}
+
+// ─── AUTH NAV ───────────────────────────────────────────────────────────────
+(function initAuthNav() {
+  const token = localStorage.getItem('fs_token') || sessionStorage.getItem('fs_token');
+  const userRaw = localStorage.getItem('fs_user') || sessionStorage.getItem('fs_user');
+  const nav = document.getElementById('authNav');
+
+  if (token && userRaw) {
+    try {
+      const user = JSON.parse(userRaw);
+      const initials = ((user.first_name||'')[0]||(user.email||'?')[0]).toUpperCase();
+      nav.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0">
+          <div class="user-btn" style="cursor:default">
+            <div class="user-avatar">${initials}</div>
+            <span>${user.first_name || user.email}</span>
+          </div>
+          <button class="logout-btn" onclick="doLogout()" title="Sign out">✕</button>
+        </div>`;
+    } catch(e) { nav.innerHTML = signInLink(); }
+  } else {
+    nav.innerHTML = signInLink();
+  }
+
+  function signInLink() {
+    return `<a class="user-btn" href="login.html">🔑 Sign In</a>`;
+  }
+})();
+
+function doLogout() {
+  localStorage.removeItem('fs_token');
+  localStorage.removeItem('fs_user');
+  sessionStorage.removeItem('fs_token');
+  sessionStorage.removeItem('fs_user');
+  window.location.href = 'login.html';
+}
+</script>
+</body>
+</html>
